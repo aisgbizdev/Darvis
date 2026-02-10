@@ -15,18 +15,28 @@ DARVIS is an AI-powered thinking companion web application with dual-persona out
 - `shared/schema.ts` - ChatMessage, ChatRequest, ChatResponse types
 - `prompts/DARVIS_CORE.md` - Core system prompt (dual-persona rules)
 - `prompts/DARVIS_NODE_SolidGroup.md` - Solid Group context node
+- `prompts/DARVIS_NODE_BIAS.md` - Behavioral bias & emotional context node
 
 ## Features
 - Single-page minimalist chat UI
 - Dual-persona output: Broto (logical) & Rara (reflective)
 - Intent detection for Solid Group topics (keywords: solid, rfb, bpf, kpf, ewf, sgb, etc.)
+- Intent detection for behavioral/emotional bias (keywords: ragu, fomo, burnout, stres, overconfidence, etc. + NLP regex patterns)
+- Multi-node support: NODE_BIAS prioritized for refleksi awal when multiple nodes detected
+- Fallback: if uncertain, NODE_BIAS activated (broad keyword + pattern matching)
 - localStorage chat history with 10-message context window
 - Clear chat functionality
 - Loading state indicator
 - Post-processing to enforce Broto/Rara format
 
+## Node System
+- **NODE_SOLIDGROUP**: Solid Group business context (triggered by company/product keywords)
+- **NODE_BIAS**: Behavioral intelligence & human risk (triggered by emotional/bias keywords + regex patterns)
+- Priority: NODE_BIAS > other nodes when multiple detected (refleksi awal, turunkan klaim)
+
 ## Environment
 - `OPENAI_API_KEY` - Required, stored in Replit Secrets
 
 ## Recent Changes
+- 2026-02-10: Added NODE_BIAS support with keyword + NLP pattern detection, multi-node priority
 - 2026-02-10: Initial v0.1 implementation

@@ -5,7 +5,6 @@ import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
 
-// the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const SOLID_GROUP_KEYWORDS = [
@@ -13,6 +12,28 @@ const SOLID_GROUP_KEYWORDS = [
   "berjangka", "website resmi", "afiliasi", "holding", "grup",
   "rifan", "bestprofit", "kontak perkasa", "equityworld", "solid gold",
   "legalitas", "pt "
+];
+
+const BIAS_KEYWORDS = [
+  "ragu", "bingung", "takut",
+  "fomo", "impulsif",
+  "capek", "cape", "burnout", "stres", "stress",
+  "tekanan", "target berat",
+  "emosi", "panik", "cemas", "gelisah", "khawatir",
+  "overconfidence", "terlalu yakin", "pede banget", "ge er",
+  "galau", "bimbang", "nggak tenang", "gak tenang", "tidak tenang",
+  "frustasi", "frustrasi", "putus asa",
+  "overwhelm", "kewalahan",
+  "nggak bisa mikir", "gak bisa mikir", "tidak bisa berpikir",
+  "tertekan", "dipaksa", "terpaksa",
+  "loss aversion", "sunk cost", "confirmation bias",
+  "ikut-ikutan", "ikut ikutan", "herd", "fomo banget",
+  "terlalu optimis", "bias", "mental",
+  "lelah", "capai", "kelelahan",
+  "grogi", "nervous", "deg-degan", "deg degan",
+  "minder", "ragu-ragu", "ragu ragu",
+  "overthinking", "kepikiran terus",
+  "nekat", "gegabah", "terburu", "buru-buru", "buru buru"
 ];
 
 function readPromptFile(filename: string): string {
@@ -27,6 +48,43 @@ function readPromptFile(filename: string): string {
 function detectSolidGroupIntent(message: string): boolean {
   const lower = message.toLowerCase();
   return SOLID_GROUP_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
+function detectBiasIntent(message: string): boolean {
+  const lower = message.toLowerCase();
+
+  if (BIAS_KEYWORDS.some((kw) => lower.includes(kw))) {
+    return true;
+  }
+
+  const biasPatterns = [
+    /gak?\s*(bisa|mampu)\s*(pikir|mikir|tenang|fokus)/i,
+    /nggak?\s*(bisa|mampu)\s*(pikir|mikir|tenang|fokus)/i,
+    /tidak\s*(bisa|mampu)\s*(berpikir|tenang|fokus)/i,
+    /terlalu\s+(yakin|pede|optimis|percaya\s+diri)/i,
+    /takut\s+(salah|rugi|gagal|ketinggalan)/i,
+    /harus\s+(cepat|sekarang|segera)\s*(ambil|putus|eksekusi)/i,
+    /kepala\s+(pusing|mumet|berat)/i,
+    /pikiran\s+(kacau|campur\s*aduk|berantakan)/i,
+    /kondisi\s+(mental|emosi|psikolog)/i,
+    /perasaan\s+(campur|berat|kacau|galau)/i,
+  ];
+
+  if (biasPatterns.some((p) => p.test(lower))) {
+    return true;
+  }
+
+  const decisionWords = ["keputusan", "putuskan", "pilih", "ambil langkah", "eksekusi", "maju", "mundur", "lanjut", "stop", "berhenti"];
+  const uncertaintyWords = ["gimana", "gmn", "gmana", "kayaknya", "sepertinya", "entah", "gatau", "gak tau", "nggak tau", "tidak tahu", "belum yakin", "belum pasti", "susah", "sulit", "dilema", "serba salah"];
+
+  const hasDecision = decisionWords.some((w) => lower.includes(w));
+  const hasUncertainty = uncertaintyWords.some((w) => lower.includes(w));
+
+  if (hasDecision && hasUncertainty) {
+    return true;
+  }
+
+  return false;
 }
 
 function enforceFormat(reply: string): string {
@@ -69,15 +127,30 @@ export async function registerRoutes(
 
       const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
 
-      let nodeUsed: string | null = null;
+      const nodesUsed: string[] = [];
       let systemContent = corePrompt;
 
-      if (detectSolidGroupIntent(message)) {
+      const isBias = detectBiasIntent(message);
+      const isSolidGroup = detectSolidGroupIntent(message);
+
+      if (isBias) {
+        const biasPrompt = readPromptFile("DARVIS_NODE_BIAS.md");
+        if (biasPrompt) {
+          systemContent += `\n\n---\nNODE CONTEXT AKTIF: NODE_BIAS (PRIORITAS UTAMA)\n\n${biasPrompt}`;
+          nodesUsed.push("NODE_BIAS");
+        }
+      }
+
+      if (isSolidGroup) {
         const solidPrompt = readPromptFile("DARVIS_NODE_SolidGroup.md");
         if (solidPrompt) {
           systemContent += `\n\n---\nNODE CONTEXT AKTIF: NODE_SOLIDGROUP\n\n${solidPrompt}`;
-          nodeUsed = "NODE_SOLIDGROUP";
+          nodesUsed.push("NODE_SOLIDGROUP");
         }
+      }
+
+      if (nodesUsed.length > 1) {
+        systemContent += `\n\n---\nINSTRUKSI MULTI-NODE:\nLebih dari satu node terdeteksi (${nodesUsed.join(", ")}). PRIORITASKAN NODE_BIAS untuk refleksi awal. Turunkan klaim — jangan memberi advice, jangan memberi instruksi. Fokus pada kondisi manusia di balik pertanyaan ini terlebih dahulu, baru sentuh konteks domain lain secara ringan.`;
       }
 
       messages.push({ role: "system", content: systemContent });
@@ -115,6 +188,7 @@ export async function registerRoutes(
         reply = enforceFormat(rawReply);
       }
 
+      const nodeUsed = nodesUsed.length > 0 ? nodesUsed.join(", ") : null;
       const response: ChatResponse = { reply, nodeUsed };
       return res.json(response);
     } catch (err: any) {
