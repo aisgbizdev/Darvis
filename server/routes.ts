@@ -58,6 +58,33 @@ const AISG_KEYWORDS = [
   "aisg"
 ];
 
+const RISK_GUARD_KEYWORDS = [
+  "risiko", "risk",
+  "martingale", "averaging",
+  "leverage", "margin",
+  "drawdown", "loss",
+  "money management",
+  "aman atau tidak", "aman gak", "aman nggak", "aman tidak",
+  "perlindungan nasabah",
+  "margin call",
+  "overtrading",
+  "black swan",
+  "lot", "entry", "exit",
+  "sinyal", "signal",
+  "stop loss", "take profit",
+  "cut loss",
+  "floating", "floating loss",
+  "likuidasi",
+  "eksposur", "exposure",
+  "hedging", "hedge",
+  "risk reward", "risk management",
+  "manajemen risiko",
+  "bahaya", "berbahaya",
+  "rugi", "kerugian",
+  "modal habis", "modal hilang",
+  "bangkrut",
+];
+
 const BIAS_KEYWORDS = [
   "ragu", "bingung", "takut",
   "fomo", "impulsif",
@@ -179,6 +206,37 @@ function detectNMIntent(message: string): boolean {
   return nmPatterns.some((p) => p.test(lower));
 }
 
+function detectRiskGuardIntent(message: string): boolean {
+  const lower = message.toLowerCase();
+
+  if (RISK_GUARD_KEYWORDS.some((kw) => lower.includes(kw))) {
+    return true;
+  }
+
+  const riskPatterns = [
+    /aman\s+(gak|nggak|tidak|atau|ga)\s*/i,
+    /risiko\s+(trading|investasi|transaksi|strategi)/i,
+    /bahaya\s+(martingale|averaging|leverage)/i,
+    /berapa\s+(lot|margin|leverage)/i,
+    /bisa\s+(rugi|bangkrut|habis|hilang)/i,
+    /modal\s+(habis|hilang|ludes|amblas)/i,
+    /margin\s+call/i,
+    /stop\s+loss/i,
+    /take\s+profit/i,
+    /cut\s+loss/i,
+    /money\s+management/i,
+    /risk\s+(reward|management|control)/i,
+    /manajemen\s+risiko/i,
+    /floating\s+(loss|minus|negatif)/i,
+    /perlindungan\s+(nasabah|investor|dana)/i,
+    /strategi\s+(aman|berbahaya|berisiko)/i,
+    /kasih\s+(sinyal|signal|lot|entry|exit)/i,
+    /minta\s+(sinyal|signal|lot|entry|exit)/i,
+  ];
+
+  return riskPatterns.some((p) => p.test(lower));
+}
+
 function enforceFormat(reply: string): string {
   const hasBroto = /Broto\s*:/i.test(reply);
   const hasRara = /Rara\s*:/i.test(reply);
@@ -226,6 +284,7 @@ export async function registerRoutes(
       const isSolidGroup = detectSolidGroupIntent(message);
       const isAiSG = detectAiSGIntent(message);
       const isNM = detectNMIntent(message);
+      const isRiskGuard = detectRiskGuardIntent(message);
 
       if (isBias) {
         const biasPrompt = readPromptFile("DARVIS_NODE_BIAS.md");
@@ -235,10 +294,24 @@ export async function registerRoutes(
         }
       }
 
-      if (isNM) {
+      if (isRiskGuard) {
+        const riskPrompt = readPromptFile("DARVIS_NODE_RISK_GUARD.md");
+        if (riskPrompt) {
+          systemContent += `\n\n---\nNODE CONTEXT AKTIF: NODE_RISK_GUARD (PENGAMAN)\n\n${riskPrompt}`;
+          nodesUsed.push("NODE_RISK_GUARD");
+        }
+      }
+
+      if (isNM && !isRiskGuard) {
         const nmPrompt = readPromptFile("DARVIS_NODE_NM.md");
         if (nmPrompt) {
           systemContent += `\n\n---\nNODE CONTEXT AKTIF: NODE_NM\n\n${nmPrompt}`;
+          nodesUsed.push("NODE_NM");
+        }
+      } else if (isNM && isRiskGuard) {
+        const nmPrompt = readPromptFile("DARVIS_NODE_NM.md");
+        if (nmPrompt) {
+          systemContent += `\n\n---\nNODE CONTEXT TAMBAHAN: NODE_NM (subordinat terhadap RISK_GUARD)\n\n${nmPrompt}`;
           nodesUsed.push("NODE_NM");
         }
       }
