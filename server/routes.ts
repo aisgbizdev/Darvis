@@ -645,6 +645,16 @@ export async function registerRoutes(
         }
       }
 
+      if (nodesUsed.length > 0) {
+        const resourcePrompt = readPromptFile("DARVIS_NODE_RESOURCES.md");
+        if (resourcePrompt) {
+          systemContent += `\n\n---\nNODE CONTEXT PENDUKUNG: NODE_RESOURCES (REFERENSI & ARAHAN BELAJAR)\n\n${resourcePrompt}`;
+          nodesUsed.push("NODE_RESOURCES");
+        }
+      } else {
+        systemContent += `\n\n---\nINSTRUKSI RESOURCE REFERRAL:\nJika konteks percakapan relevan, persona DR boleh menyisipkan referensi ke sumber belajar secara natural (produk ekosistem: BIAS di bias23.com, AiSG di aisg23.replit.app, NM di newsmaker.id, NM Ai di nm23ai.replit.app, atau buku/tokoh yang relevan). Referensi tidak wajib di setiap jawaban — hanya saat benar-benar cocok dengan topik. Tone: "kalau mau lebih dalam, coba cek..." bukan iklan.`;
+      }
+
       if (nodesUsed.length > 1) {
         const hasBiasNode = nodesUsed.includes("NODE_BIAS");
         const multiNodeInstruction = hasBiasNode
