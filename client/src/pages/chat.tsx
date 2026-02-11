@@ -252,7 +252,7 @@ export default function ChatPage() {
           </div>
           <div>
             <h1 className="text-sm font-bold tracking-tight leading-none" data-testid="text-app-title">DARVIS</h1>
-            <p className="text-[10px] text-muted-foreground leading-tight mt-0.5" data-testid="text-app-version">DiAn Raha Vision v0.2</p>
+            <p className="text-[10px] text-muted-foreground leading-tight mt-0.5" data-testid="text-app-version">Thinking Companion v0.2</p>
           </div>
         </div>
         <div className="flex items-center gap-1 flex-wrap">
