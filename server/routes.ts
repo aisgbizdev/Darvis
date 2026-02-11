@@ -366,7 +366,32 @@ function detectRiskGuardIntent(message: string): boolean {
   return riskPatterns.some((p) => p.test(lower));
 }
 
-function enforceFormat(reply: string): string {
+function detectMultiPersonaIntent(message: string): boolean {
+  const lower = message.toLowerCase();
+  const patterns = [
+    /\b(menurut|pendapat|kata)\s+(broto|rara|rere|dr)\b/,
+    /\b(gimana|bagaimana)\s+(menurut|kata)\s+(broto|rara|rere|dr)\b/,
+    /\b(minta\s+pendapat|tanya)\s+(semua\s+persona|4\s+persona|empat\s+persona|semua\s+suara)\b/,
+    /\b(dari\s+)?(4|empat)\s+(sudut\s+pandang|perspektif|suara|sisi)\b/,
+    /\b(analisis|bedah|bahas)\s+dari\s+(semua|berbagai|masing.masing)\s+(sisi|sudut|perspektif)\b/,
+    /\b(apa\s+kata|gimana\s+menurut)\s+(masing.masing|semua)\b/,
+    /\bpendapat\s+masing.masing\s+persona\b/,
+    /\bbedah\s+dari\s+semua\s+perspektif\b/,
+    /\b(broto|rara|rere)\s+(gimana|bagaimana|apa\s+pendapat)\b/,
+  ];
+  return patterns.some((p) => p.test(lower));
+}
+
+function enforceFormat(reply: string, multiPersona: boolean): string {
+  if (!multiPersona) {
+    let cleaned = reply
+      .replace(/^Broto:\s*/im, "")
+      .replace(/\n\s*Rara:\s*/im, "\n\n")
+      .replace(/\n\s*Rere:\s*/im, "\n\n")
+      .replace(/\n\s*DR:\s*/im, "\n\n");
+    return cleaned.trim();
+  }
+
   const hasBroto = /Broto\s*:/i.test(reply);
   const hasRara = /Rara\s*:/i.test(reply);
   const hasRere = /Rere\s*:/i.test(reply);
@@ -679,7 +704,14 @@ export async function registerRoutes(
       const drProfile = readPromptFile("DARVIS_PROFILE_DR.md");
 
       const nodesUsed: string[] = [];
+      const isMultiPersonaMode = detectMultiPersonaIntent(message);
       let systemContent = corePrompt;
+
+      if (isMultiPersonaMode) {
+        systemContent += `\n\n---\nMODE AKTIF: MULTI-PERSONA\nUser meminta pendapat dari perspektif persona. Gunakan format 4 suara:\nBroto: ...\nRara: ...\nRere: ...\nDR: ...\nMasing-masing persona HARUS punya sudut pandang BERBEDA. Urutan: Broto → Rara → Rere → DR.`;
+      } else {
+        systemContent += `\n\n---\nMODE AKTIF: SATU SUARA DARVIS\nJawab sebagai SATU SUARA terpadu. JANGAN gunakan label "Broto:", "Rara:", "Rere:", "DR:" dalam output. Integrasikan semua perspektif (logika, refleksi, kreativitas, pengalaman DR) menjadi satu narasi koheren. Gaya: santai, to the point, seperti ngobrol sama teman yang smart.`;
+      }
 
       if (drProfile) {
         systemContent += `\n\n---\nPROFIL FONDASI MAS DR (untuk persona DR):\n${drProfile}`;
@@ -782,13 +814,13 @@ export async function registerRoutes(
       if (toneSignals.length > 0) {
         systemContent += `\n\n---\nTONE PERCAKAPAN TERDETEKSI: ${toneSignals.join(", ")}.\n`;
         if (tone.emotional) {
-          systemContent += `Tone emosional terdeteksi — Rara harus memulai dengan acknowledgment kondisi emosi sebelum masuk ke substansi. Broto boleh tetap logis tapi dengan empati.\n`;
+          systemContent += `Tone emosional terdeteksi — mulai dengan acknowledgment kondisi emosi sebelum masuk ke substansi. Tetap logis tapi dengan empati.\n`;
         }
         if (tone.urgent) {
-          systemContent += `Tone urgensi terdeteksi — Broto harus bantu pikirkan: apakah urgensi ini nyata atau didorong oleh tekanan? Rara boleh rem sedikit kalau perlu: "Apakah memang harus sekarang, mas DR?"\n`;
+          systemContent += `Tone urgensi terdeteksi — bantu pikirkan: apakah urgensi ini nyata atau didorong oleh tekanan? Boleh rem sedikit kalau perlu: "Apakah memang harus sekarang?"\n`;
         }
         if (tone.evaluative) {
-          systemContent += `Tone evaluatif terdeteksi — Broto harus bantu dengan framework berpikir, bukan penilaian langsung. Rara harus ingatkan sisi manusiawi dari orang yang sedang dievaluasi.\n`;
+          systemContent += `Tone evaluatif terdeteksi — bantu dengan framework berpikir, bukan penilaian langsung. Ingatkan juga sisi manusiawi dari orang yang sedang dievaluasi.\n`;
         }
       }
 
@@ -885,9 +917,11 @@ export async function registerRoutes(
 
       let reply: string;
       if (!rawReply.trim()) {
-        reply = "Broto: Maaf mas DR, saya butuh waktu untuk memproses pertanyaan ini. Bisa coba ulangi?\n\nRara: Tenang mas DR, kadang perlu pendekatan berbeda. Coba sampaikan pertanyaan dengan cara lain ya.\n\nRere: Mungkin coba tanya dari sudut yang berbeda, kadang itu bantu.\n\nDR: Gw juga kadang gitu — coba rephrase aja, biar kita bisa jalan lagi.";
+        reply = isMultiPersonaMode
+          ? "Broto: Maaf mas DR, saya butuh waktu untuk memproses pertanyaan ini. Bisa coba ulangi?\n\nRara: Tenang mas DR, kadang perlu pendekatan berbeda. Coba sampaikan pertanyaan dengan cara lain ya.\n\nRere: Mungkin coba tanya dari sudut yang berbeda, kadang itu bantu.\n\nDR: Gw juga kadang gitu — coba rephrase aja, biar kita bisa jalan lagi."
+          : "Maaf, gw butuh waktu untuk memproses pertanyaan ini. Coba ulangi atau rephrase ya.";
       } else {
-        reply = enforceFormat(rawReply);
+        reply = enforceFormat(rawReply, isMultiPersonaMode);
       }
 
       saveMessage(USER_ID, "user", message);

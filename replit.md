@@ -1,4 +1,4 @@
-# DARVIS - DiAn Raha Vision v0.2
+# DARVIS - DiAn Raha Vision v0.3
 
 ## Overview
 DARVIS is an AI-powered thinking companion web application with quad-persona output (Broto, Rara, Rere, DR). Built for mas DR as a tool to help think more clearly before making decisions. Long-term vision: become a digital twin of mas DR's thinking style — so others can consult DARVIS and get perspectives reflecting how DR thinks, questions, and decides.
@@ -63,14 +63,14 @@ DARVIS is an AI-powered thinking companion web application with quad-persona out
 - **NODE_COMPLIANCE**: Preventive compliance & operational risk
 - Priority: NODE_BIAS > NODE_RISK_GUARD > NODE_NM > other nodes
 
-## Persona System (v0.2)
-- 4 personas: Broto, Rara, Rere, DR
-- Each persona MUST appear in every response
-- Each persona MUST have a DIFFERENT perspective
-- No persona may just "agree with others"
-- Rere always fills gaps not covered by Broto and Rara
+## Persona System (v0.3)
+- 4 internal perspectives: Broto, Rara, Rere, DR
+- **DEFAULT mode**: Single unified DARVIS voice (integrates all 4 perspectives into one coherent response)
+- **MULTI-PERSONA mode**: On-demand only — activated when user explicitly asks for persona opinions
+  - Triggers: "menurut Broto", "minta pendapat semua persona", "dari 4 sudut pandang", etc.
+  - Shows 4 persona cards with labeled responses
 - DR speaks like mas DR, powered by DARVIS_PROFILE_DR.md + Auto-Learn
-- Format: Broto → Rara → Rere → DR (always in this order)
+- detectMultiPersonaIntent() in server/routes.ts handles mode detection
 
 ## Auto-Learn System
 - **Trigger**: Every 10 messages, AI extracts user preferences
@@ -108,6 +108,9 @@ DARVIS is an AI-powered thinking companion web application with quad-persona out
 - **Endpoint**: GET /api/persona-feedback
 
 ## Recent Changes
+- 2026-02-11: **v0.3 — Single Voice Default** — DARVIS now responds as one unified voice by default, multi-persona only on-demand
+- 2026-02-11: Added DR aliases (Raha, Bapak, Bapa) to passive listening & profile enrichment detection
+- 2026-02-11: Added "gak suka dipanggil Boss" to DR profile
 - 2026-02-11: Added Profile Enrichment system — DR bisa perkaya profil cukup dari percakapan DARVIS, gak perlu masuk Replit
 - 2026-02-11: Added Resource Referral system (NODE_RESOURCES) — natural referensi ke produk ekosistem, buku, tokoh, film
 - 2026-02-11: Enriched DR character — persepsi orang (Jordan Belfort, Vito Corleone, Steve Jobs), tokoh idola, film favorit

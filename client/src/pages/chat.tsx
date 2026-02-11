@@ -218,7 +218,7 @@ export default function ChatPage() {
         ...prev,
         {
           role: "assistant",
-          content: `Broto: Maaf mas DR, terjadi gangguan teknis. Silakan coba lagi.\n\nRara: Tenang mas DR, kadang koneksi memang perlu waktu. Coba ulangi ya.\n\nRere: Mungkin coba lagi dalam beberapa detik.\n\nDR: Gw paham, teknikal issue. Coba sekali lagi.`,
+          content: "Maaf, ada gangguan teknis. Coba ulangi ya — kadang koneksi memang perlu waktu.",
         },
       ]);
     },
@@ -273,7 +273,7 @@ export default function ChatPage() {
           <img src="/darvis-logo.png" alt="DARVIS" className="w-7 h-7 sm:w-8 sm:h-8 rounded-md object-cover" />
           <div>
             <h1 className="text-sm font-bold tracking-tight leading-none" data-testid="text-app-title">DARVIS</h1>
-            <p className="text-[10px] text-muted-foreground leading-tight mt-0.5" data-testid="text-app-version">Thinking Companion v0.2</p>
+            <p className="text-[10px] text-muted-foreground leading-tight mt-0.5" data-testid="text-app-version">Thinking Companion v0.3</p>
           </div>
         </div>
         <div className="flex items-center gap-0.5 sm:gap-1">
