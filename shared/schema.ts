@@ -3,10 +3,12 @@ import { z } from "zod";
 export const chatMessageSchema = z.object({
   role: z.enum(["user", "assistant"]),
   content: z.string(),
+  images: z.array(z.string()).optional(),
 });
 
 export const chatRequestSchema = z.object({
   message: z.string().min(1),
+  images: z.array(z.string()).optional(),
 });
 
 export type ChatMessage = z.infer<typeof chatMessageSchema>;

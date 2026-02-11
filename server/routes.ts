@@ -694,7 +694,8 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid request body" });
       }
 
-      const { message } = parsed.data;
+      const { message, images } = parsed.data;
+      const hasImages = images && images.length > 0;
 
       const corePrompt = readPromptFile("DARVIS_CORE.md");
       if (!corePrompt) {
@@ -904,7 +905,21 @@ export async function registerRoutes(
         });
       }
 
-      apiMessages.push({ role: "user", content: message });
+      if (hasImages) {
+        const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
+          { type: "text", text: message },
+        ];
+        for (const img of images) {
+          const base64Data = img.startsWith("data:") ? img : `data:image/png;base64,${img}`;
+          contentParts.push({
+            type: "image_url",
+            image_url: { url: base64Data, detail: "auto" },
+          });
+        }
+        apiMessages.push({ role: "user", content: contentParts });
+      } else {
+        apiMessages.push({ role: "user", content: message });
+      }
 
       const completion = await openai.chat.completions.create({
         model: "gpt-5",
