@@ -1,7 +1,7 @@
-# DARVIS - DiAn Raha Vision v0.1
+# DARVIS - DiAn Raha Vision v0.2
 
 ## Overview
-DARVIS is an AI-powered thinking companion web application with dual-persona output (Broto & Rara). Built for mas DR as a tool to help think more clearly before making decisions.
+DARVIS is an AI-powered thinking companion web application with quad-persona output (Broto, Rara, Rere, DR). Built for mas DR as a tool to help think more clearly before making decisions. Long-term vision: become a digital twin of mas DR's thinking style — so others can consult DARVIS and get perspectives reflecting how DR thinks, questions, and decides.
 
 ## User Preferences
 - **Bahasa**: Selalu gunakan Bahasa Indonesia untuk semua komunikasi dan respons. Jangan campur dengan bahasa Inggris supaya tidak salah tafsir.
@@ -14,10 +14,11 @@ DARVIS is an AI-powered thinking companion web application with dual-persona out
 - **Database**: darvis.db (SQLite, WAL mode)
 
 ## Key Files
-- `client/src/pages/chat.tsx` - Main chat UI page
+- `client/src/pages/chat.tsx` - Main chat UI page (4-persona display)
 - `server/routes.ts` - /api/chat endpoint with OpenAI integration
 - `shared/schema.ts` - ChatMessage, ChatRequest, ChatResponse types
-- `prompts/DARVIS_CORE.md` - Core system prompt (dual-persona rules)
+- `prompts/DARVIS_CORE.md` - Core system prompt (quad-persona rules v0.2)
+- `prompts/DARVIS_PROFILE_DR.md` - DR's foundational profile (digital twin knowledge base)
 - `prompts/DARVIS_NODE_SolidGroup.md` - Solid Group context node
 - `prompts/DARVIS_NODE_BIAS.md` - Behavioral bias & emotional context node
 - `prompts/DARVIS_NODE_AiSG.md` - Audit intelligence & governance context node
@@ -26,64 +27,75 @@ DARVIS is an AI-powered thinking companion web application with dual-persona out
 - `prompts/DARVIS_NODE_COMPLIANCE.md` - Preventive compliance & operational risk context node
 
 ## Features
-- Single-page minimalist chat UI
-- Dual-persona output: Broto (logical) & Rara (reflective)
-- Intent detection for Solid Group topics (keywords: solid, rfb, bpf, kpf, ewf, sgb, etc.)
-- Intent detection for behavioral/emotional bias (keywords: ragu, fomo, burnout, stres, overconfidence, etc. + NLP regex patterns)
-- Intent detection for audit/governance (keywords: audit, evaluasi, kinerja, cabang, governance, ews, etc. + NLP regex patterns)
-- Intent detection for market/data (keywords: harga, emas, gold, oil, market, inflasi, the fed, trading, etc. + NLP regex patterns)
-- Intent detection for risk education (keywords: risiko, martingale, leverage, margin, drawdown, loss, money management, etc. + NLP regex patterns)
-- Intent detection for compliance/operational risk (keywords: kyc, kepatuhan, compliance, kewajaran, nasabah, komplain, eskalasi, etc. + NLP regex patterns)
-- Multi-node support: NODE_BIAS prioritized for refleksi awal when multiple nodes detected
-- Fallback: if ragu market vs risiko, prioritaskan NODE_RISK_GUARD
-- Server-side SQLite persistent chat history with 10-message context window + auto-summary
+- Single-page minimalist chat UI with 4-persona visual cards
+- Quad-persona output:
+  - **Broto** (blue/Shield): logis, tegas, fokus risiko & konsekuensi
+  - **Rara** (rose/Heart): reflektif, empatik, mempertimbangkan emosi & jangka panjang
+  - **Rere** (amber/Sparkles): pelengkap, kreatif, alternatif, devil's advocate
+  - **DR** (emerald/User): digital twin mas DR, santai tapi tegas, CBD perspective
+- DR profile foundation loaded from DARVIS_PROFILE_DR.md
+- Profile auto-seeding on first load (13 foundational insights)
+- Intent detection for Solid Group topics
+- Intent detection for behavioral/emotional bias
+- Intent detection for audit/governance
+- Intent detection for market/data
+- Intent detection for risk education
+- Intent detection for compliance/operational risk
+- Multi-node support with priority system
+- Server-side SQLite persistent chat history with 20-message context window + auto-summary
+- Chain of Thought reasoning (internal, not shown to user)
+- Clarifying Questions capability (DARVIS can ask back when context is unclear)
 - Auto-learn system: AI-powered preference extraction every 10 messages
+- 12 auto-learn categories including prinsip_hidup, filosofi_bisnis, gaya_bahasa
 - Learned preferences injected into system prompt for personalized responses
 - Preferences panel (lightbulb icon) to view what DARVIS has learned
 - Clear chat functionality (also clears learned preferences)
-- Loading state indicator
-- Post-processing to enforce Broto/Rara format
-- Konteks Pengguna: lightweight DR profile in system prompt for instant context
-- Proactive Reflection: Rara/Broto can proactively remind about overload, fatigue, rushed decisions, delegation, recurring patterns
-- Tone Detection: automatic emotional/analytical/evaluative/urgent tone detection → adjusts node activation and Broto/Rara behavior
+- Post-processing to enforce 4-persona format
+- Proactive Reflection across all personas
+- Tone Detection: emotional/analytical/evaluative/urgent
 
 ## Node System
-- **NODE_SOLIDGROUP**: Solid Group business context (triggered by company/product keywords)
-- **NODE_BIAS**: Behavioral intelligence & human risk (triggered by emotional/bias keywords + regex patterns)
-- **NODE_AiSG**: Audit intelligence & governance (triggered by audit/evaluasi/kinerja/governance keywords + regex patterns)
-- **NODE_NM**: Market intelligence & data authority (triggered by market/harga/ekonomi keywords + regex patterns)
-- **NODE_RISK_GUARD**: Risk education & mitigation (triggered by risiko/martingale/leverage/margin/drawdown keywords + regex patterns)
-- **NODE_COMPLIANCE**: Preventive compliance & operational risk (triggered by kyc/kepatuhan/compliance/kewajaran/nasabah/komplain/eskalasi keywords + regex patterns)
+- **NODE_SOLIDGROUP**: Solid Group business context
+- **NODE_BIAS**: Behavioral intelligence & human risk
+- **NODE_AiSG**: Audit intelligence & governance
+- **NODE_NM**: Market intelligence & data authority
+- **NODE_RISK_GUARD**: Risk education & mitigation
+- **NODE_COMPLIANCE**: Preventive compliance & operational risk
 - Priority: NODE_BIAS > NODE_RISK_GUARD > NODE_NM > other nodes
-- When RISK_GUARD + NM both detected: NM becomes subordinate to RISK_GUARD
-- Multi-node without BIAS: turunkan klaim, bahasa reflektif, no penilaian final
-- Node injection order: BIAS (priority) → RISK_GUARD → NM → AiSG → COMPLIANCE → SOLIDGROUP
 
-## Environment
-- `OPENAI_API_KEY` - Required, stored in Replit Secrets
+## Persona System (v0.2)
+- 4 personas: Broto, Rara, Rere, DR
+- Each persona MUST appear in every response
+- Each persona MUST have a DIFFERENT perspective
+- No persona may just "agree with others"
+- Rere always fills gaps not covered by Broto and Rara
+- DR speaks like mas DR, powered by DARVIS_PROFILE_DR.md + Auto-Learn
+- Format: Broto → Rara → Rere → DR (always in this order)
 
 ## Auto-Learn System
-- **Trigger**: Every 10 messages, AI extracts user preferences from recent conversations
-- **Categories**: gaya_berpikir, preferensi_komunikasi, konteks_bisnis, pola_keputusan, area_fokus, koreksi_penting, gaya_kepemimpinan, pola_stres, area_blind_spot
+- **Trigger**: Every 10 messages, AI extracts user preferences
+- **Categories**: gaya_berpikir, preferensi_komunikasi, konteks_bisnis, pola_keputusan, area_fokus, koreksi_penting, gaya_kepemimpinan, pola_stres, area_blind_spot, prinsip_hidup, filosofi_bisnis, gaya_bahasa
+- **Seed**: POST /api/seed-profile seeds 13 foundational insights from DR profile
 - **Storage**: learned_preferences table in SQLite
 - **Injection**: Preferences injected into system prompt as AUTO-LEARN block
 - **UI**: Lightbulb icon in header → panel showing learned insights grouped by category
 - **Clear**: Clearing chat also clears all learned preferences
-- **Endpoints**: GET /api/preferences (view), POST /api/clear (reset all)
+- **Endpoints**: GET /api/preferences, POST /api/clear, POST /api/seed-profile
+
+## Environment
+- `OPENAI_API_KEY` - Required, stored in Replit Secrets
 
 ## Recent Changes
-- 2026-02-11: Added Konteks Pengguna section in DARVIS_CORE.md — lightweight user profile for DR (CBD Solid Group, experienced leader, sparring partner expectation)
-- 2026-02-11: Added Proactive Reflection system — Rara/Broto can proactively remind DR about overload, fatigue, rushed decisions, delegation, recurring patterns
-- 2026-02-11: Upgraded Auto-Learn with 3 new categories: gaya_kepemimpinan, pola_stres, area_blind_spot (max 10 insights per extraction)
-- 2026-02-11: Added Tone Detection system — detects emotional, analytical, evaluative, urgent tones → auto-activates relevant nodes and adjusts Broto/Rara behavior
-- 2026-02-11: Added NODE_COMPLIANCE v0.1 with curated knowledge from SG Compliance & Risk Assistant (preventive compliance framework, 9 kategori risiko, red flags, checklist kepatuhan, pertanyaan reflektif)
-- 2026-02-11: Enriched NODE_AiSG v0.2 with curated knowledge from AiSG (18 Pilar framework, zona kinerja, ProDem, Reality Score gap, EWS, SWOT, action plan 30-60-90, coaching knowledge — all framed as reflective tools)
-- 2026-02-11: Enriched NODE_BIAS v0.2 with curated knowledge from BiAS Pro (cognitive bias catalog 23 items, decision frameworks 6 models, teknik debiasing 7 metode, pola emosional, template refleksi, warmth index)
-- 2026-02-11: Enriched NODE_NM v0.2 with curated knowledge from Gwen Stacy/NM AI (technical analysis, fundamental analysis, instrument characteristics, trading strategies education, korelasi, sentimen)
-- 2026-02-11: Enriched NODE_RISK_GUARD v0.2 with curated knowledge from Gwen Stacy/NM AI (money management, psychology, cognitive biases, common mistakes, SPA trading concepts, regulasi & perlindungan)
-- 2026-02-10: Added Auto-Learn system with AI-powered preference extraction and injection
-- 2026-02-10: Added NODE_RISK_GUARD support with risk education keyword + NLP detection, fallback priority over NM
-- 2026-02-10: Added NODE_NM support with market/data keyword + NLP detection
-- 2026-02-10: Added NODE_AiSG support with audit/governance keyword + NLP detection, multi-node logic
-- 2026-02-10: Added NODE_BIAS support with keyword + NLP pattern detection, multi-node priority
+- 2026-02-11: **v0.2 MAJOR UPGRADE** — 4-persona system (Broto, Rara, Rere, DR)
+- 2026-02-11: Created DARVIS_PROFILE_DR.md — comprehensive DR profile curated from 13 personal documents
+- 2026-02-11: Added Rere persona (complementary/creative perspectives)
+- 2026-02-11: Added DR persona (digital twin, speaks like mas DR)
+- 2026-02-11: Updated UI with 4 persona cards (color-coded: blue/rose/amber/emerald)
+- 2026-02-11: Added profile auto-seeding (13 foundational insights)
+- 2026-02-11: Upgraded context window from 10 to 20 messages
+- 2026-02-11: Added Chain of Thought reasoning capability
+- 2026-02-11: Added Clarifying Questions capability
+- 2026-02-11: Added 3 new auto-learn categories: prinsip_hidup, filosofi_bisnis, gaya_bahasa
+- 2026-02-11: Added Konteks Pengguna, Proactive Reflection, Tone Detection
+- 2026-02-11: Added NODE_COMPLIANCE, enriched all existing nodes
 - 2026-02-10: Initial v0.1 implementation

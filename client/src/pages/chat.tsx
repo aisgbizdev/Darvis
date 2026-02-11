@@ -4,46 +4,101 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Trash2, Loader2, Brain, Lightbulb, X } from "lucide-react";
+import { Send, Trash2, Loader2, Brain, Lightbulb, X, Shield, Heart, Sparkles, User } from "lucide-react";
 import type { ChatMessage, ChatResponse, HistoryResponse, PreferencesResponse } from "@shared/schema";
 
-function parseDualVoice(text: string) {
-  const brotoMatch = text.match(/Broto:\s*([\s\S]*?)(?=\n\s*Rara:|$)/i);
-  const raraMatch = text.match(/Rara:\s*([\s\S]*?)$/i);
+interface ParsedVoices {
+  broto: string | null;
+  rara: string | null;
+  rere: string | null;
+  dr: string | null;
+}
 
-  if (brotoMatch && raraMatch) {
-    return {
-      broto: brotoMatch[1].trim(),
-      rara: raraMatch[1].trim(),
-    };
-  }
-  return null;
+function parseQuadVoice(text: string): ParsedVoices | null {
+  const brotoMatch = text.match(/Broto:\s*([\s\S]*?)(?=\n\s*(?:Rara|Rere|DR)\s*:|$)/i);
+  const raraMatch = text.match(/Rara:\s*([\s\S]*?)(?=\n\s*(?:Rere|DR)\s*:|$)/i);
+  const rereMatch = text.match(/Rere:\s*([\s\S]*?)(?=\n\s*DR\s*:|$)/i);
+  const drMatch = text.match(/DR:\s*([\s\S]*?)$/i);
+
+  const hasAny = brotoMatch || raraMatch || rereMatch || drMatch;
+  if (!hasAny) return null;
+
+  return {
+    broto: brotoMatch ? brotoMatch[1].trim() : null,
+    rara: raraMatch ? raraMatch[1].trim() : null,
+    rere: rereMatch ? rereMatch[1].trim() : null,
+    dr: drMatch ? drMatch[1].trim() : null,
+  };
+}
+
+const PERSONA_CONFIG = {
+  broto: {
+    label: "Broto",
+    subtitle: "Logis & Tegas",
+    icon: Shield,
+    bgClass: "bg-blue-500/10 dark:bg-blue-400/10",
+    textClass: "text-blue-600 dark:text-blue-400",
+    accentClass: "bg-blue-500 dark:bg-blue-400",
+  },
+  rara: {
+    label: "Rara",
+    subtitle: "Reflektif & Empatik",
+    icon: Heart,
+    bgClass: "bg-rose-500/10 dark:bg-rose-400/10",
+    textClass: "text-rose-600 dark:text-rose-400",
+    accentClass: "bg-rose-500 dark:bg-rose-400",
+  },
+  rere: {
+    label: "Rere",
+    subtitle: "Kreatif & Alternatif",
+    icon: Sparkles,
+    bgClass: "bg-amber-500/10 dark:bg-amber-400/10",
+    textClass: "text-amber-600 dark:text-amber-400",
+    accentClass: "bg-amber-500 dark:bg-amber-400",
+  },
+  dr: {
+    label: "DR",
+    subtitle: "Digital Twin",
+    icon: User,
+    bgClass: "bg-emerald-500/10 dark:bg-emerald-400/10",
+    textClass: "text-emerald-600 dark:text-emerald-400",
+    accentClass: "bg-emerald-500 dark:bg-emerald-400",
+  },
+} as const;
+
+function PersonaCard({ persona, content, index }: { persona: keyof typeof PERSONA_CONFIG; content: string; index: number }) {
+  const config = PERSONA_CONFIG[persona];
+  const Icon = config.icon;
+
+  return (
+    <div className="flex gap-0">
+      <div className={`w-1 shrink-0 rounded-full ${config.accentClass} opacity-40`} />
+      <Card className="p-3 bg-card border-card-border flex-1 ml-2">
+        <div className="flex items-center gap-2 mb-1.5">
+          <div className={`w-5 h-5 rounded-md ${config.bgClass} flex items-center justify-center`} data-testid={`icon-${persona}-${index}`}>
+            <Icon className={`w-3 h-3 ${config.textClass}`} />
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <span className={`text-xs font-semibold ${config.textClass}`} data-testid={`label-${persona}-${index}`}>{config.label}</span>
+            <span className="text-[9px] text-muted-foreground">{config.subtitle}</span>
+          </div>
+        </div>
+        <p className="text-sm leading-relaxed whitespace-pre-wrap" data-testid={`text-${persona}-${index}`}>{content}</p>
+      </Card>
+    </div>
+  );
 }
 
 function AssistantBubble({ content, index }: { content: string; index: number }) {
-  const parsed = parseDualVoice(content);
+  const parsed = parseQuadVoice(content);
 
-  if (parsed) {
+  if (parsed && (parsed.broto || parsed.rara || parsed.rere || parsed.dr)) {
     return (
       <div className="flex flex-col gap-2 max-w-[85%] sm:max-w-[75%]" data-testid={`bubble-assistant-${index}`}>
-        <Card className="p-3 bg-card border-card-border">
-          <div className="flex items-center gap-2 mb-1.5">
-            <div className="w-5 h-5 rounded-md bg-primary/15 flex items-center justify-center" data-testid={`icon-broto-${index}`}>
-              <span className="text-[10px] font-bold text-primary">B</span>
-            </div>
-            <span className="text-xs font-semibold text-muted-foreground" data-testid={`label-broto-${index}`}>Broto</span>
-          </div>
-          <p className="text-sm leading-relaxed whitespace-pre-wrap" data-testid={`text-broto-${index}`}>{parsed.broto}</p>
-        </Card>
-        <Card className="p-3 bg-card border-card-border">
-          <div className="flex items-center gap-2 mb-1.5">
-            <div className="w-5 h-5 rounded-md bg-chart-3/15 flex items-center justify-center" data-testid={`icon-rara-${index}`}>
-              <span className="text-[10px] font-bold text-chart-3">R</span>
-            </div>
-            <span className="text-xs font-semibold text-muted-foreground" data-testid={`label-rara-${index}`}>Rara</span>
-          </div>
-          <p className="text-sm leading-relaxed whitespace-pre-wrap" data-testid={`text-rara-${index}`}>{parsed.rara}</p>
-        </Card>
+        {parsed.broto && <PersonaCard persona="broto" content={parsed.broto} index={index} />}
+        {parsed.rara && <PersonaCard persona="rara" content={parsed.rara} index={index} />}
+        {parsed.rere && <PersonaCard persona="rere" content={parsed.rere} index={index} />}
+        {parsed.dr && <PersonaCard persona="dr" content={parsed.dr} index={index} />}
       </div>
     );
   }
@@ -85,6 +140,12 @@ const CATEGORY_LABELS: Record<string, string> = {
   pola_keputusan: "Pola Keputusan",
   area_fokus: "Area Fokus",
   koreksi_penting: "Koreksi Penting",
+  gaya_kepemimpinan: "Gaya Kepemimpinan",
+  pola_stres: "Pola Stres",
+  area_blind_spot: "Area Blind Spot",
+  prinsip_hidup: "Prinsip Hidup",
+  filosofi_bisnis: "Filosofi Bisnis",
+  gaya_bahasa: "Gaya Bahasa",
 };
 
 export default function ChatPage() {
@@ -109,6 +170,10 @@ export default function ChatPage() {
     }
   }, [historyData]);
 
+  useEffect(() => {
+    apiRequest("POST", "/api/seed-profile").catch(() => {});
+  }, []);
+
   const scrollToBottom = useCallback(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -132,7 +197,7 @@ export default function ChatPage() {
         ...prev,
         {
           role: "assistant",
-          content: `Broto: Maaf mas DR, terjadi gangguan teknis. Silakan coba lagi.\n\nRara: Tenang mas DR, kadang koneksi memang perlu waktu. Coba ulangi ya.`,
+          content: `Broto: Maaf mas DR, terjadi gangguan teknis. Silakan coba lagi.\n\nRara: Tenang mas DR, kadang koneksi memang perlu waktu. Coba ulangi ya.\n\nRere: Mungkin coba lagi dalam beberapa detik.\n\nDR: Gw paham, teknikal issue. Coba sekali lagi.`,
         },
       ]);
     },
@@ -187,7 +252,7 @@ export default function ChatPage() {
           </div>
           <div>
             <h1 className="text-sm font-bold tracking-tight leading-none" data-testid="text-app-title">DARVIS</h1>
-            <p className="text-[10px] text-muted-foreground leading-tight mt-0.5" data-testid="text-app-version">DiAn Raha Vision v0.1</p>
+            <p className="text-[10px] text-muted-foreground leading-tight mt-0.5" data-testid="text-app-version">DiAn Raha Vision v0.2</p>
           </div>
         </div>
         <div className="flex items-center gap-1 flex-wrap">
@@ -271,8 +336,19 @@ export default function ChatPage() {
               </div>
               <h2 className="text-base font-semibold mb-1" data-testid="text-greeting">Halo, mas DR</h2>
               <p className="text-sm text-muted-foreground max-w-xs" data-testid="text-tagline">
-                Aku di sini supaya kamu tidak berpikir sendirian.
+                Empat perspektif, satu tujuan: supaya kamu tidak berpikir sendirian.
               </p>
+              <div className="flex flex-wrap gap-1.5 justify-center mt-4 max-w-sm">
+                {Object.entries(PERSONA_CONFIG).map(([key, config]) => {
+                  const Icon = config.icon;
+                  return (
+                    <div key={key} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md ${config.bgClass}`}>
+                      <Icon className={`w-3 h-3 ${config.textClass}`} />
+                      <span className={`text-[10px] font-medium ${config.textClass}`}>{config.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
               <div className="flex flex-wrap gap-2 justify-center mt-6">
                 {[
                   "Apa itu DARVIS?",

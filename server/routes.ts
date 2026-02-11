@@ -352,21 +352,32 @@ function detectRiskGuardIntent(message: string): boolean {
 function enforceFormat(reply: string): string {
   const hasBroto = /Broto\s*:/i.test(reply);
   const hasRara = /Rara\s*:/i.test(reply);
+  const hasRere = /Rere\s*:/i.test(reply);
+  const hasDR = /DR\s*:/i.test(reply);
 
-  if (hasBroto && hasRara) return reply;
+  if (hasBroto && hasRara && hasRere && hasDR) return reply;
 
-  if (!hasBroto && !hasRara) {
+  if (!hasBroto && !hasRara && !hasRere && !hasDR) {
     const sentences = reply.split(/(?<=[.!?])\s+/);
-    const mid = Math.ceil(sentences.length / 2);
-    const brotoPart = sentences.slice(0, mid).join(" ");
-    const raraPart = sentences.slice(mid).join(" ") || brotoPart;
-    return `Broto: ${brotoPart}\n\nRara: ${raraPart}`;
+    const quarter = Math.ceil(sentences.length / 4);
+    const brotoPart = sentences.slice(0, quarter).join(" ");
+    const raraPart = sentences.slice(quarter, quarter * 2).join(" ") || "Saya merasakan ada hal penting di balik pertanyaan ini, mas DR.";
+    const rerePart = sentences.slice(quarter * 2, quarter * 3).join(" ") || "Coba lihat dari sudut pandang yang berbeda, mas DR.";
+    const drPart = sentences.slice(quarter * 3).join(" ") || "Kalau gw pikir-pikir, ini perlu dilihat dari sisi pengalaman juga.";
+    return `Broto: ${brotoPart}\n\nRara: ${raraPart}\n\nRere: ${rerePart}\n\nDR: ${drPart}`;
   }
 
-  if (!hasBroto) return `Broto: ${reply}\n\nRara: Saya sependapat dengan apa yang sudah disampaikan, mas DR.`;
-  if (!hasRara) return `${reply}\n\nRara: Setuju mas DR, pertimbangkan juga sisi emosional dari keputusan ini.`;
+  const brotoMatch = reply.match(/Broto:\s*([\s\S]*?)(?=\n\s*(?:Rara|Rere|DR)\s*:|$)/i);
+  const raraMatch = reply.match(/Rara:\s*([\s\S]*?)(?=\n\s*(?:Rere|DR)\s*:|$)/i);
+  const rereMatch = reply.match(/Rere:\s*([\s\S]*?)(?=\n\s*DR\s*:|$)/i);
+  const drMatch = reply.match(/DR:\s*([\s\S]*?)$/i);
 
-  return reply;
+  const brotoContent = brotoMatch ? brotoMatch[1].trim() : "Perlu dilihat risiko dan konsekuensinya, mas DR.";
+  const raraContent = raraMatch ? raraMatch[1].trim() : "Pertimbangkan juga sisi emosional dan jangka panjangnya, mas DR.";
+  const rereContent = rereMatch ? rereMatch[1].trim() : "Ada sudut pandang lain yang mungkin belum terpikirkan di sini.";
+  const drContent = drMatch ? drMatch[1].trim() : "Dari pengalaman gw, ini perlu dipikirin lebih matang sebelum dieksekusi.";
+
+  return `Broto: ${brotoContent}\n\nRara: ${raraContent}\n\nRere: ${rereContent}\n\nDR: ${drContent}`;
 }
 
 export async function registerRoutes(
@@ -412,6 +423,38 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/seed-profile", async (_req, res) => {
+    try {
+      const existingPrefs = getLearnedPreferences(USER_ID);
+      const hasSeed = existingPrefs.some(p => p.source_summary === "SEED_FROM_PROFILE");
+      if (hasSeed) {
+        return res.json({ success: true, message: "Profile already seeded", count: 0 });
+      }
+
+      const seedPreferences = [
+        { category: "gaya_berpikir", insight: "Multimode thinker — bisa berpindah antara makro-strategis, teknis-detail, kreatif, dan humanistik dalam satu percakapan", confidence: 0.95, source_summary: "SEED_FROM_PROFILE" },
+        { category: "gaya_berpikir", insight: "Berpikir sistemik — selalu lihat gambaran besar dan koneksi antar bagian sebelum eksekusi", confidence: 0.95, source_summary: "SEED_FROM_PROFILE" },
+        { category: "gaya_kepemimpinan", insight: "High expectation & fast-paced — standar tinggi, mengharapkan kecepatan dan inisiatif dari tim", confidence: 0.9, source_summary: "SEED_FROM_PROFILE" },
+        { category: "gaya_kepemimpinan", insight: "Tegas tapi peduli — keras pada standar, tapi perhatian pada kondisi personal tim", confidence: 0.9, source_summary: "SEED_FROM_PROFILE" },
+        { category: "filosofi_bisnis", insight: "Legacy jangka panjang lebih penting dari hasil instan — membangun sistem yang bisa jalan tanpa ketergantungan individu", confidence: 0.95, source_summary: "SEED_FROM_PROFILE" },
+        { category: "filosofi_bisnis", insight: "Speed over protocol — lebih baik minta maaf daripada izin, meritokrasi ide bukan senioritas", confidence: 0.9, source_summary: "SEED_FROM_PROFILE" },
+        { category: "prinsip_hidup", insight: "Regenerasi kader — bukan sekadar pelatihan tapi pembentukan, agar sistem bisa jalan tanpa satu orang", confidence: 0.9, source_summary: "SEED_FROM_PROFILE" },
+        { category: "pola_stres", insight: "Terlalu banyak proyek jalan bersamaan — energi kepecah, mental load tinggi tanpa ventilasi cukup", confidence: 0.85, source_summary: "SEED_FROM_PROFILE" },
+        { category: "area_blind_spot", insight: "Cenderung micromanage di beberapa titik — perlu latih trust & delegation lebih", confidence: 0.85, source_summary: "SEED_FROM_PROFILE" },
+        { category: "area_blind_spot", insight: "Kadang terlalu cepat eksekusi tanpa validasi ulang di lapangan — perfeksionis sistem bisa tunda implementasi", confidence: 0.85, source_summary: "SEED_FROM_PROFILE" },
+        { category: "gaya_bahasa", insight: "Santai dan to the point, kadang pakai bahasa gaul, tapi tegas dan serius kalau konteksnya berat", confidence: 0.95, source_summary: "SEED_FROM_PROFILE" },
+        { category: "preferensi_komunikasi", insight: "Suka sparring intelektual — butuh partner yang menantang dan berani beda pendapat, bukan yang nurut", confidence: 0.9, source_summary: "SEED_FROM_PROFILE" },
+        { category: "konteks_bisnis", insight: "CBD Solid Group, mengelola 5 PT (RFB, EWF, KPF, BPF, SGB) melalui divisi BD sebagai engine strategis", confidence: 0.95, source_summary: "SEED_FROM_PROFILE" },
+      ];
+
+      bulkUpsertPreferences(USER_ID, seedPreferences);
+      return res.json({ success: true, message: "Profile seeded successfully", count: seedPreferences.length });
+    } catch (err: any) {
+      console.error("Seed profile error:", err?.message || err);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   app.post("/api/chat", async (req, res) => {
     try {
       const parsed = chatRequestSchema.safeParse(req.body);
@@ -426,8 +469,14 @@ export async function registerRoutes(
         return res.status(500).json({ message: "System prompt not found" });
       }
 
+      const drProfile = readPromptFile("DARVIS_PROFILE_DR.md");
+
       const nodesUsed: string[] = [];
       let systemContent = corePrompt;
+
+      if (drProfile) {
+        systemContent += `\n\n---\nPROFIL FONDASI MAS DR (untuk persona DR):\n${drProfile}`;
+      }
 
       const tone = detectConversationTone(message);
 
@@ -556,7 +605,7 @@ export async function registerRoutes(
         });
       }
 
-      const recentMessages = getLastMessages(USER_ID, 10);
+      const recentMessages = getLastMessages(USER_ID, 20);
       for (const msg of recentMessages) {
         apiMessages.push({
           role: msg.role === "user" ? "user" : "assistant",
@@ -577,7 +626,7 @@ export async function registerRoutes(
 
       let reply: string;
       if (!rawReply.trim()) {
-        reply = "Broto: Maaf mas DR, saya butuh waktu untuk memproses pertanyaan ini. Bisa coba ulangi?\n\nRara: Tenang mas DR, kadang perlu pendekatan berbeda. Coba sampaikan pertanyaan dengan cara lain ya.";
+        reply = "Broto: Maaf mas DR, saya butuh waktu untuk memproses pertanyaan ini. Bisa coba ulangi?\n\nRara: Tenang mas DR, kadang perlu pendekatan berbeda. Coba sampaikan pertanyaan dengan cara lain ya.\n\nRere: Mungkin coba tanya dari sudut yang berbeda, kadang itu bantu.\n\nDR: Gw juga kadang gitu — coba rephrase aja, biar kita bisa jalan lagi.";
       } else {
         reply = enforceFormat(rawReply);
       }
@@ -630,7 +679,7 @@ Percakapan terbaru:
 ${conversationText}
 
 Ekstrak insight dalam format JSON array. Setiap insight harus memiliki:
-- category: salah satu dari "gaya_berpikir", "preferensi_komunikasi", "konteks_bisnis", "pola_keputusan", "area_fokus", "koreksi_penting", "gaya_kepemimpinan", "pola_stres", "area_blind_spot"
+- category: salah satu dari "gaya_berpikir", "preferensi_komunikasi", "konteks_bisnis", "pola_keputusan", "area_fokus", "koreksi_penting", "gaya_kepemimpinan", "pola_stres", "area_blind_spot", "prinsip_hidup", "filosofi_bisnis", "gaya_bahasa"
 - insight: deskripsi singkat (1-2 kalimat) dalam bahasa Indonesia
 - confidence: angka 0.5-1.0 (seberapa yakin insight ini valid)
 - source_summary: ringkasan singkat bukti dari percakapan
@@ -646,6 +695,9 @@ RULES:
 - "gaya_kepemimpinan" = cara user memimpin tim (tegas, coaching, delegatif, micromanage, dll), pola interaksi dengan bawahan, pendekatan ke masalah SDM
 - "pola_stres" = tanda-tanda stres atau kelelahan yang terlihat, trigger stres, cara coping, kapan energi turun
 - "area_blind_spot" = hal-hal yang user cenderung abaikan, asumsi yang tidak diperiksa, pola berulang yang belum disadari, keputusan yang terlalu cepat tanpa refleksi
+- "prinsip_hidup" = nilai-nilai dan prinsip yang dipegang teguh, filosofi personal, cara pandang terhadap hidup dan pekerjaan
+- "filosofi_bisnis" = cara pandang terhadap bisnis, strategi, dan organisasi, pendekatan ke masalah bisnis
+- "gaya_bahasa" = kosakata khas, ungkapan favorit, campuran bahasa, level formalitas yang disukai
 - Maksimal 10 insight per ekstraksi
 - Prioritaskan "area_blind_spot" dan "pola_stres" jika terdeteksi — ini paling berharga untuk proactive reflection
 - Jika tidak ada insight baru yang jelas, kembalikan array kosong []
@@ -668,7 +720,7 @@ Respond ONLY with valid JSON array, no other text.`;
     const parsed = JSON.parse(jsonMatch[0]);
     if (!Array.isArray(parsed) || parsed.length === 0) return;
 
-    const validCategories = ["gaya_berpikir", "preferensi_komunikasi", "konteks_bisnis", "pola_keputusan", "area_fokus", "koreksi_penting", "gaya_kepemimpinan", "pola_stres", "area_blind_spot"];
+    const validCategories = ["gaya_berpikir", "preferensi_komunikasi", "konteks_bisnis", "pola_keputusan", "area_fokus", "koreksi_penting", "gaya_kepemimpinan", "pola_stres", "area_blind_spot", "prinsip_hidup", "filosofi_bisnis", "gaya_bahasa"];
     const validPrefs = parsed
       .filter((p: any) =>
         p.category && validCategories.includes(p.category) &&
