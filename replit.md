@@ -3,6 +3,9 @@
 ## Overview
 DARVIS is an AI-powered thinking companion web application with dual-persona output (Broto & Rara). Built for mas DR as a tool to help think more clearly before making decisions.
 
+## User Preferences
+- **Bahasa**: Selalu gunakan Bahasa Indonesia untuk semua komunikasi dan respons. Jangan campur dengan bahasa Inggris supaya tidak salah tafsir.
+
 ## Architecture
 - **Frontend**: React + TypeScript + Tailwind CSS + shadcn/ui
 - **Backend**: Express.js with OpenAI API integration
