@@ -338,17 +338,6 @@ export default function ChatPage() {
               <p className="text-sm text-muted-foreground max-w-xs" data-testid="text-tagline">
                 Digital twin cara berpikir mas DR. Ceritakan apa yang lagi lo pikirin, kita bedah bareng.
               </p>
-              <div className="flex flex-wrap gap-1.5 justify-center mt-4 max-w-sm">
-                {Object.entries(PERSONA_CONFIG).map(([key, config]) => {
-                  const Icon = config.icon;
-                  return (
-                    <div key={key} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md ${config.bgClass}`}>
-                      <Icon className={`w-3 h-3 ${config.textClass}`} />
-                      <span className={`text-[10px] font-medium ${config.textClass}`}>{config.label}</span>
-                    </div>
-                  );
-                })}
-              </div>
               <div className="flex flex-wrap gap-2 justify-center mt-6">
                 {[
                   "Gimana cara DR biasa ambil keputusan?",
