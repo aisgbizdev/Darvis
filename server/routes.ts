@@ -18,9 +18,23 @@ import {
   getPersonaFeedback,
   bulkSavePersonaFeedback,
   clearPersonaFeedback,
+  getProfileEnrichments,
+  bulkSaveProfileEnrichments,
+  clearProfileEnrichments,
 } from "./db";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+const ENRICHMENT_CATEGORY_LABELS: Record<string, string> = {
+  persepsi_orang: "Persepsi Orang Lain",
+  tokoh_idola: "Tokoh Idola & Inspirasi",
+  film_favorit: "Film Favorit",
+  prinsip_spiritual: "Spiritual & Religius",
+  karakter_personal: "Karakter Personal",
+  kebiasaan: "Kebiasaan",
+  filosofi: "Filosofi Hidup",
+  preferensi: "Preferensi & Selera",
+};
 
 const SOLID_GROUP_KEYWORDS = [
   "solid", "solid group", "rfb", "bpf", "kpf", "ewf", "sgb",
@@ -400,6 +414,86 @@ function detectPersonaMention(message: string): boolean {
   return opinionSignals.some((p) => p.test(lower));
 }
 
+function detectDRIdentity(message: string): boolean {
+  const lower = message.toLowerCase();
+  const patterns = [
+    /\b(ini\s+gw\s+dr|gw\s+dr\s+nih|gw\s+tuh|gw\s+sebenernya|tentang\s+gw)\b/,
+    /\b(gw\s+orangnya|gw\s+suka|gw\s+gak\s+suka|gw\s+kagum|gw\s+idola)\b/,
+    /\b(menurut\s+gw\s+tentang\s+diri\s+gw|kebiasaan\s+gw|prinsip\s+gw)\b/,
+    /\b(orang\s+(bilang|mikir|liat|anggap|nilai)\s+(gw|dr))\b/,
+    /\b(gw\s+(mirip|kayak|seperti|ibarat))\b/,
+    /\b(film\s+(favorit|kesukaan)|tokoh\s+(idola|favorit|panutan))\b/,
+    /\b(gw\s+percaya|gw\s+yakin|filosofi\s+gw|nilai\s+gw)\b/,
+    /\b(gw\s+muslim|agama\s+gw|iman\s+gw|spiritual)\b/,
+    /\b(kekuatan\s+gw|kelemahan\s+gw|sisi\s+(baik|buruk)\s+gw)\b/,
+    /\b(sebagian\s+orang\s+mikir|orang.{0,20}mirin|orang.{0,20}lihat\s+(gw|dr))\b/,
+    /\b(gw\s+kurang\s+suka|gw\s+lebih\s+suka)\b/,
+    /\b(dia\s+suka|dia\s+kurang\s+suka|dia\s+lebih\s+suka|dia\s+idola)/,
+    /\b(dr\s+tuh|dr\s+orangnya|dr\s+itu)/,
+  ];
+  return patterns.some((p) => p.test(lower));
+}
+
+async function extractProfileEnrichment(userMessage: string) {
+  const prompt = `Kamu adalah sistem ekstraksi profil untuk DARVIS. Analisis pesan berikut dan ekstrak fakta-fakta personal tentang DR (Dian Ramadhan) yang disampaikan.
+
+Pesan: "${userMessage}"
+
+Ekstrak fakta personal dalam format JSON array. Setiap fakta harus memiliki:
+- category: salah satu dari "persepsi_orang" (bagaimana orang lain melihat DR), "tokoh_idola" (tokoh yang dikagumi/tidak dikagumi), "film_favorit" (film yang disukai), "prinsip_spiritual" (nilai religius/spiritual), "karakter_personal" (sifat/karakter pribadi), "kebiasaan" (habit/kebiasaan), "filosofi" (cara pandang/filosofi hidup), "preferensi" (hal yang disukai/tidak disukai)
+- fact: deskripsi fakta dalam 1-2 kalimat bahasa Indonesia, ditulis sebagai fakta tentang DR (bukan kutipan langsung)
+- confidence: 0.6-1.0
+- source_quote: kutipan singkat dari pesan asli yang jadi bukti
+
+RULES:
+- Hanya ekstrak fakta NYATA yang disebutkan, jangan berasumsi
+- Tulis fact sebagai pernyataan tentang DR, contoh: "DR dikagumi karena karisma mirip Jordan Belfort" bukan "gw mirip Jordan Belfort"
+- Pisahkan fakta berbeda jadi item terpisah
+- Maksimal 10 fakta per ekstraksi
+- Jika tidak ada fakta personal yang jelas, kembalikan []
+
+Respond ONLY with valid JSON array.`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-5",
+      messages: [{ role: "user", content: prompt }],
+      max_completion_tokens: 2048,
+    });
+
+    const raw = completion.choices[0]?.message?.content?.trim();
+    if (!raw) return;
+
+    const jsonMatch = raw.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) return;
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    if (!Array.isArray(parsed) || parsed.length === 0) return;
+
+    const validCategories = ["persepsi_orang", "tokoh_idola", "film_favorit", "prinsip_spiritual", "karakter_personal", "kebiasaan", "filosofi", "preferensi"];
+    const validItems = parsed
+      .filter((p: any) =>
+        p.category && validCategories.includes(p.category) &&
+        p.fact && typeof p.fact === "string" &&
+        typeof p.confidence === "number" && p.confidence >= 0.6 && p.confidence <= 1.0
+      )
+      .slice(0, 10)
+      .map((p: any) => ({
+        category: p.category as string,
+        fact: p.fact as string,
+        confidence: p.confidence as number,
+        source_quote: (p.source_quote as string) || null,
+      }));
+
+    if (validItems.length > 0) {
+      bulkSaveProfileEnrichments(validItems);
+      console.log(`Profile enrichment: captured ${validItems.length} fact(s) about DR`);
+    }
+  } catch (err: any) {
+    console.error("Profile enrichment extraction failed:", err?.message || err);
+  }
+}
+
 async function extractPersonaFeedback(userMessage: string, assistantReply: string) {
   const prompt = `Kamu adalah sistem pendeteksi feedback persona. Analisis pesan berikut dan cek apakah ada penilaian/pendapat/cerita tentang DR, Broto, Rara, atau Rere.
 
@@ -492,6 +586,7 @@ export async function registerRoutes(
       clearHistory(USER_ID);
       clearPreferences(USER_ID);
       clearPersonaFeedback();
+      clearProfileEnrichments();
       return res.json({ success: true });
     } catch (err: any) {
       console.error("Clear API error:", err?.message || err);
@@ -505,6 +600,16 @@ export async function registerRoutes(
       return res.json({ feedback });
     } catch (err: any) {
       console.error("Persona feedback API error:", err?.message || err);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/profile-enrichments", (_req, res) => {
+    try {
+      const enrichments = getProfileEnrichments();
+      return res.json({ enrichments });
+    } catch (err: any) {
+      console.error("Profile enrichments API error:", err?.message || err);
       return res.status(500).json({ message: "Internal server error" });
     }
   });
@@ -703,6 +808,26 @@ export async function registerRoutes(
         systemContent += fbBlock;
       }
 
+      const profileEnrichments = getProfileEnrichments();
+      if (profileEnrichments.length > 0) {
+        const grouped: Record<string, string[]> = {};
+        for (const e of profileEnrichments) {
+          if (!grouped[e.category]) grouped[e.category] = [];
+          grouped[e.category].push(e.fact);
+        }
+        let enrichBlock = "\n\n---\nPROFIL ENRICHMENT: FAKTA DARI PERCAKAPAN LANGSUNG DENGAN DR\nBerikut adalah fakta-fakta personal tentang mas DR yang dia sampaikan sendiri dalam percakapan. Gunakan untuk memperkaya persona DR:\n\n";
+        for (const [cat, facts] of Object.entries(grouped)) {
+          const label = ENRICHMENT_CATEGORY_LABELS[cat] || cat;
+          enrichBlock += `[${label}]\n`;
+          for (const fact of facts) {
+            enrichBlock += `- ${fact}\n`;
+          }
+          enrichBlock += "\n";
+        }
+        enrichBlock += "Catatan: Fakta ini dari percakapan langsung dengan DR. Integrasikan secara natural ke dalam respons persona DR.";
+        systemContent += enrichBlock;
+      }
+
       const learnedPrefs = getLearnedPreferences(USER_ID);
       if (learnedPrefs.length > 0) {
         const grouped: Record<string, string[]> = {};
@@ -765,6 +890,12 @@ export async function registerRoutes(
       if (detectPersonaMention(message)) {
         extractPersonaFeedback(message, reply).catch((err) => {
           console.error("Passive listening error:", err?.message || err);
+        });
+      }
+
+      if (detectDRIdentity(message)) {
+        extractProfileEnrichment(message).catch((err) => {
+          console.error("Profile enrichment error:", err?.message || err);
         });
       }
 

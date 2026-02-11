@@ -237,4 +237,66 @@ export function getPreferenceCount(userId: string): number {
   return row.count;
 }
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS profile_enrichments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    category TEXT NOT NULL,
+    fact TEXT NOT NULL,
+    confidence REAL NOT NULL DEFAULT 0.8,
+    source_quote TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_profile_enrichments_category ON profile_enrichments(category);
+`);
+
+export interface ProfileEnrichment {
+  id: number;
+  category: string;
+  fact: string;
+  confidence: number;
+  source_quote: string | null;
+  created_at: string;
+}
+
+export function getProfileEnrichments(): ProfileEnrichment[] {
+  return db.prepare(`SELECT * FROM profile_enrichments ORDER BY category, confidence DESC, created_at DESC`).all() as ProfileEnrichment[];
+}
+
+export function saveProfileEnrichment(
+  category: string,
+  fact: string,
+  confidence: number,
+  sourceQuote: string | null
+) {
+  const existing = db.prepare(`
+    SELECT id FROM profile_enrichments WHERE category = ? AND fact = ?
+  `).get(category, fact) as { id: number } | undefined;
+
+  if (existing) {
+    db.prepare(`
+      UPDATE profile_enrichments SET confidence = ?, source_quote = ?, created_at = datetime('now') WHERE id = ?
+    `).run(confidence, sourceQuote, existing.id);
+  } else {
+    db.prepare(`
+      INSERT INTO profile_enrichments (category, fact, confidence, source_quote) VALUES (?, ?, ?, ?)
+    `).run(category, fact, confidence, sourceQuote);
+  }
+}
+
+export function bulkSaveProfileEnrichments(
+  items: { category: string; fact: string; confidence: number; source_quote: string | null }[]
+) {
+  const transaction = db.transaction(() => {
+    for (const item of items) {
+      saveProfileEnrichment(item.category, item.fact, item.confidence, item.source_quote);
+    }
+  });
+  transaction();
+}
+
+export function clearProfileEnrichments() {
+  db.prepare(`DELETE FROM profile_enrichments`).run();
+}
+
 export default db;

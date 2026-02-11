@@ -47,3 +47,16 @@ export interface PersonaFeedbackItem {
 export interface PersonaFeedbackResponse {
   feedback: PersonaFeedbackItem[];
 }
+
+export interface ProfileEnrichmentItem {
+  id: number;
+  category: string;
+  fact: string;
+  confidence: number;
+  source_quote: string | null;
+  created_at: string;
+}
+
+export interface ProfileEnrichmentsResponse {
+  enrichments: ProfileEnrichmentItem[];
+}

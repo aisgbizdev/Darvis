@@ -85,6 +85,18 @@ DARVIS is an AI-powered thinking companion web application with quad-persona out
 ## Environment
 - `OPENAI_API_KEY` - Required, stored in Replit Secrets
 
+## Profile Enrichment System (Otomatis dari Percakapan)
+- **Trigger**: Deteksi otomatis ketika DR cerita tentang dirinya sendiri (identitas, preferensi, karakter)
+- **Detection**: Pattern matching — "gw DR", "gw suka", "orang mikir gw", "tokoh idola", "film favorit", dll
+- **Extraction**: AI-powered extraction → category, fact, confidence, source_quote
+- **Categories**: persepsi_orang, tokoh_idola, film_favorit, prinsip_spiritual, karakter_personal, kebiasaan, filosofi, preferensi
+- **Storage**: profile_enrichments table in SQLite
+- **Injection**: Enrichments injected into system prompt as PROFIL ENRICHMENT block
+- **UI**: Shown in preferences panel under "Profil DR dari Percakapan" with violet color scheme
+- **Clear**: Clearing chat also clears profile enrichments
+- **Endpoint**: GET /api/profile-enrichments
+- **Philosophy**: DR gak perlu masuk Replit — cukup ngobrol di DARVIS, profil otomatis makin kaya
+
 ## Passive Listening System
 - **Trigger**: Deteksi otomatis ketika orang menyebut DR/Broto/Rara/Rere dengan opini/kesan
 - **Detection**: Cek nama persona + sinyal opini (adjective, opinion words, etc.)
@@ -96,6 +108,9 @@ DARVIS is an AI-powered thinking companion web application with quad-persona out
 - **Endpoint**: GET /api/persona-feedback
 
 ## Recent Changes
+- 2026-02-11: Added Profile Enrichment system — DR bisa perkaya profil cukup dari percakapan DARVIS, gak perlu masuk Replit
+- 2026-02-11: Added Resource Referral system (NODE_RESOURCES) — natural referensi ke produk ekosistem, buku, tokoh, film
+- 2026-02-11: Enriched DR character — persepsi orang (Jordan Belfort, Vito Corleone, Steve Jobs), tokoh idola, film favorit
 - 2026-02-11: Added Passive Listening system — otomatis tangkap kesan orang tentang DR/Broto/Rara/Rere
 - 2026-02-11: Updated branding — removed "DiAn Raha" references, logo custom, "Thinking Companion" subtitle
 - 2026-02-11: Updated empty state — digital twin positioning, no persona badges

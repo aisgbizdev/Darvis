@@ -4,8 +4,8 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Trash2, Loader2, Lightbulb, X, Shield, Heart, Sparkles, User } from "lucide-react";
-import type { ChatMessage, ChatResponse, HistoryResponse, PreferencesResponse, PersonaFeedbackResponse } from "@shared/schema";
+import { Send, Trash2, Loader2, Lightbulb, X, Shield, Heart, Sparkles, User, Fingerprint } from "lucide-react";
+import type { ChatMessage, ChatResponse, HistoryResponse, PreferencesResponse, PersonaFeedbackResponse, ProfileEnrichmentsResponse } from "@shared/schema";
 
 interface ParsedVoices {
   broto: string | null;
@@ -133,6 +133,17 @@ function TypingIndicator() {
   );
 }
 
+const ENRICHMENT_LABELS: Record<string, string> = {
+  persepsi_orang: "Persepsi Orang Lain",
+  tokoh_idola: "Tokoh Idola & Inspirasi",
+  film_favorit: "Film Favorit",
+  prinsip_spiritual: "Spiritual & Religius",
+  karakter_personal: "Karakter Personal",
+  kebiasaan: "Kebiasaan",
+  filosofi: "Filosofi Hidup",
+  preferensi: "Preferensi & Selera",
+};
+
 const CATEGORY_LABELS: Record<string, string> = {
   gaya_berpikir: "Gaya Berpikir",
   preferensi_komunikasi: "Preferensi Komunikasi",
@@ -166,6 +177,11 @@ export default function ChatPage() {
 
   const { data: feedbackData } = useQuery<PersonaFeedbackResponse>({
     queryKey: ["/api/persona-feedback"],
+    refetchInterval: 30000,
+  });
+
+  const { data: enrichmentData } = useQuery<ProfileEnrichmentsResponse>({
+    queryKey: ["/api/profile-enrichments"],
     refetchInterval: 30000,
   });
 
@@ -227,6 +243,7 @@ export default function ChatPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/history"] });
       queryClient.invalidateQueries({ queryKey: ["/api/preferences"] });
       queryClient.invalidateQueries({ queryKey: ["/api/persona-feedback"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/profile-enrichments"] });
       inputRef.current?.focus();
     },
   });
@@ -315,6 +332,34 @@ export default function ChatPage() {
                         <div key={item.id} className="flex items-start gap-2 py-1" data-testid={`pref-item-${item.id}`}>
                           <div className="w-1.5 h-1.5 rounded-full bg-primary/50 mt-1.5 shrink-0" />
                           <p className="text-[13px] sm:text-xs leading-relaxed">{item.insight}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {enrichmentData?.enrichments && enrichmentData.enrichments.length > 0 && (
+                <div className="mt-4 pt-3 border-t" data-testid="container-profile-enrichments">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Fingerprint className="w-3.5 h-3.5 text-violet-500" />
+                    <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Profil DR dari Percakapan</h4>
+                  </div>
+                  {Object.entries(
+                    enrichmentData.enrichments.reduce<Record<string, typeof enrichmentData.enrichments>>((acc, e) => {
+                      if (!acc[e.category]) acc[e.category] = [];
+                      acc[e.category].push(e);
+                      return acc;
+                    }, {})
+                  ).map(([category, items]) => (
+                    <div key={category} className="mb-2" data-testid={`enrichment-group-${category}`}>
+                      <p className="text-[11px] font-semibold text-violet-600 dark:text-violet-400 mb-1">
+                        {ENRICHMENT_LABELS[category] || category}
+                      </p>
+                      {items.map((item) => (
+                        <div key={item.id} className="flex items-start gap-2 py-0.5" data-testid={`enrichment-item-${item.id}`}>
+                          <div className="w-1.5 h-1.5 rounded-full bg-violet-400/60 mt-1.5 shrink-0" />
+                          <p className="text-[13px] sm:text-xs leading-relaxed">{item.fact}</p>
                         </div>
                       ))}
                     </div>
