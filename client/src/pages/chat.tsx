@@ -334,9 +334,9 @@ export default function ChatPage() {
               <div className="w-14 h-14 rounded-md bg-primary/10 flex items-center justify-center mb-4">
                 <Brain className="w-7 h-7 text-primary" />
               </div>
-              <h2 className="text-base font-semibold mb-1" data-testid="text-greeting">Siap sparring, mas DR</h2>
+              <h2 className="text-base font-semibold mb-1" data-testid="text-greeting">DARVIS</h2>
               <p className="text-sm text-muted-foreground max-w-xs" data-testid="text-tagline">
-                Empat sudut pandang buat bantu mas DR ambil keputusan lebih jernih.
+                Digital twin cara berpikir mas DR. Ceritakan apa yang lagi lo pikirin, kita bedah bareng.
               </p>
               <div className="flex flex-wrap gap-1.5 justify-center mt-4 max-w-sm">
                 {Object.entries(PERSONA_CONFIG).map(([key, config]) => {
@@ -351,9 +351,9 @@ export default function ChatPage() {
               </div>
               <div className="flex flex-wrap gap-2 justify-center mt-6">
                 {[
-                  "Evaluasi keputusan yang lagi gw pikirin",
-                  "Sparring soal strategi bisnis",
-                  "Bantu gw lihat blind spot",
+                  "Gimana cara DR biasa ambil keputusan?",
+                  "Bantu gw pikirin strategi ini",
+                  "Gw butuh perspektif yang beda",
                 ].map((q, i) => (
                   <button
                     key={q}
