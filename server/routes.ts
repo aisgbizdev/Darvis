@@ -424,7 +424,7 @@ function enforceFormat(reply: string, multiPersona: boolean): string {
 
 function detectPersonaMention(message: string): boolean {
   const lower = message.toLowerCase();
-  const hasPersonaName = /\b(dr|raha|bapak|bapa|broto|rara|rere)\b/.test(lower);
+  const hasPersonaName = /\b(dr|raha|bapak|bapa|abah|ykw|broto|rara|rere)\b/.test(lower);
   if (!hasPersonaName) return false;
 
   const opinionSignals = [
@@ -458,6 +458,8 @@ function detectDRIdentity(message: string): boolean {
     /\b(raha\s+tuh|raha\s+orangnya|raha\s+itu|raha\s+suka|raha\s+gak\s+suka)/,
     /\b(bapak\s+tuh|bapak\s+itu|bapak\s+orangnya|bapak\s+suka|bapak\s+gak\s+suka)/,
     /\b(bapa\s+tuh|bapa\s+itu|bapa\s+orangnya|bapa\s+suka|bapa\s+gak\s+suka)/,
+    /\b(abah\s+tuh|abah\s+itu|abah\s+orangnya|abah\s+suka|abah\s+gak\s+suka)/,
+    /\b(ykw\s+tuh|ykw\s+itu|ykw\s+orangnya|ykw\s+suka|ykw\s+gak\s+suka)/,
     /\b(gw\s+gak\s+suka\s+dipanggil|jangan\s+panggil\s+gw|panggil\s+gw|panggilan\s+gw)/,
   ];
   return patterns.some((p) => p.test(lower));
@@ -530,8 +532,8 @@ Pesan user: "${userMessage}"
 
 Balasan DARVIS: "${assistantReply}"
 
-Jika user menyebutkan pendapat, kesan, penilaian, atau cerita tentang salah satu dari DR (alias: Raha, Bapak, Bapa), Broto, Rara, atau Rere, ekstrak dalam format JSON array:
-- target: "dr" (gunakan "dr" juga untuk Raha/Bapak/Bapa) atau "broto" atau "rara" atau "rere"
+Jika user menyebutkan pendapat, kesan, penilaian, atau cerita tentang salah satu dari DR (alias: Raha, Bapak, Bapa, Abah, YKW), Broto, Rara, atau Rere, ekstrak dalam format JSON array:
+- target: "dr" (gunakan "dr" juga untuk Raha/Bapak/Bapa/Abah/YKW) atau "broto" atau "rara" atau "rere"
 - feedback: ringkasan pendapat/kesan dalam 1-2 kalimat bahasa Indonesia
 - sentiment: "positive", "negative", "neutral", atau "mixed"
 - confidence: 0.5-1.0
@@ -539,8 +541,8 @@ Jika user menyebutkan pendapat, kesan, penilaian, atau cerita tentang salah satu
 
 RULES:
 - Hanya ekstrak jika ada pendapat/penilaian NYATA, bukan sekadar menyebut nama
-- "DR" di sini merujuk ke persona/orang bernama DR (alias: Raha, Bapak, Bapa), BUKAN DARVIS sebagai sistem
-- Jika user menyebut "Raha", "Bapak", atau "Bapa" dengan opini, target tetap "dr"
+- "DR" di sini merujuk ke persona/orang bernama DR (alias: Raha, Bapak, Bapa, Abah, YKW), BUKAN DARVIS sebagai sistem
+- Jika user menyebut "Raha", "Bapak", "Bapa", "Abah", atau "YKW" dengan opini, target tetap "dr"
 - Jangan ekstrak dari respons DARVIS, hanya dari pesan USER
 - Jika tidak ada feedback, kembalikan []
 
@@ -676,7 +678,7 @@ export async function registerRoutes(
         { category: "gaya_bahasa", insight: "Santai dan to the point, kadang pakai bahasa gaul, tapi tegas dan serius kalau konteksnya berat", confidence: 0.95, source_summary: "SEED_FROM_PROFILE" },
         { category: "preferensi_komunikasi", insight: "Suka sparring intelektual — butuh partner yang menantang dan berani beda pendapat, bukan yang nurut", confidence: 0.9, source_summary: "SEED_FROM_PROFILE" },
         { category: "konteks_bisnis", insight: "CBD Solid Group, mengelola 5 PT (RFB, EWF, KPF, BPF, SGB) melalui divisi BD sebagai engine strategis", confidence: 0.95, source_summary: "SEED_FROM_PROFILE" },
-        { category: "preferensi_komunikasi", insight: "Tidak suka dipanggil 'Boss' — terlalu hierarkis. Panggilan yang biasa: DR, Raha, Bapak, Bapa, mas DR", confidence: 0.95, source_summary: "SEED_FROM_PROFILE" },
+        { category: "preferensi_komunikasi", insight: "Tidak suka dipanggil 'Boss' — terlalu hierarkis. Panggilan yang biasa: DR, Raha, Bapak, Bapa, Abah, YKW, mas DR", confidence: 0.95, source_summary: "SEED_FROM_PROFILE" },
       ];
 
       bulkUpsertPreferences(USER_ID, seedPreferences);

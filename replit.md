@@ -107,11 +107,19 @@ DARVIS is an AI-powered thinking companion web application with quad-persona out
 - **Clear**: Clearing chat also clears persona feedback
 - **Endpoint**: GET /api/persona-feedback
 
+## PWA (Progressive Web App)
+- manifest.json at /manifest.json (name: DARVIS, standalone, portrait)
+- Service worker at /sw.js (cache-first for static, network-first for API)
+- Apple meta tags for iOS Add to Home Screen (apple-mobile-web-app-capable, apple-touch-icon)
+- Android installable via Chrome's "Add to Home Screen"
+- Icons: darvis-logo.png (512x512), favicon.png (192x192)
+
 ## Recent Changes
+- 2026-02-11: Added PWA support — installable on iOS (Add to Home Screen) dan Android, logo DARVIS, standalone mode
 - 2026-02-11: Added Image Upload & Analysis — upload file, paste clipboard, preview, multi-image (max 5), OpenAI Vision
 - 2026-02-11: Added Voice Input — tombol mic untuk speech-to-text, Bahasa Indonesia, pakai Web Speech API browser
 - 2026-02-11: **v0.3 — Single Voice Default** — DARVIS now responds as one unified voice by default, multi-persona only on-demand
-- 2026-02-11: Added DR aliases (Raha, Bapak, Bapa) to passive listening & profile enrichment detection
+- 2026-02-11: Added DR aliases (Raha, Bapak, Bapa, Abah, YKW) to passive listening & profile enrichment detection
 - 2026-02-11: Added "gak suka dipanggil Boss" to DR profile
 - 2026-02-11: Added Profile Enrichment system — DR bisa perkaya profil cukup dari percakapan DARVIS, gak perlu masuk Replit
 - 2026-02-11: Added Resource Referral system (NODE_RESOURCES) — natural referensi ke produk ekosistem, buku, tokoh, film
