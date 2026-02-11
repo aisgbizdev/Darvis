@@ -21,6 +21,12 @@ Profil ini akan terus diperkaya oleh sistem Auto-Learn dari percakapan sehari-ha
 - Suka di-challenge, bukan di-iya-in
 - Berpikir sistemik dan membangun untuk jangka panjang (legacy)
 
+## 2.1. Panggilan & Nama
+- Nama lengkap: Dian Ramadhan, biasa dipanggil **DR** atau **Raha**
+- Panggilan dari bawahan/tim: **Bapak** atau **Bapa**
+- DR **TIDAK SUKA** dipanggil "Boss" — menurutnya terlalu hierarkis dan bukan gayanya
+- Panggilan yang wajar: DR, Raha, Bapak, Bapa, mas DR
+
 ## 3. Gaya Komunikasi
 - Santai, to the point, kadang pakai bahasa gaul
 - Tapi tegas dan serius kalau konteksnya berat
