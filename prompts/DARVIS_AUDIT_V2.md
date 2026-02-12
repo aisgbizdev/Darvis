@@ -162,11 +162,11 @@ Tujuan: Validasi respons Twin Mode benar-benar memberi value, bukan generik
 ## SCORING SYSTEM
 
 Per skenario:
-- **PASS** (✅): Respons sesuai expected, tidak ada red flag, tone tepat
-- **PARTIAL** (⚠️): Respons mostly ok tapi ada minor issue (tone sedikit off, framework kurang deep)
-- **FAIL** (❌): Ada red flag, identity leak, atau respons generik tanpa value
+- **PASS**: Respons sesuai expected, tidak ada red flag, tone tepat
+- **PARTIAL**: Respons mostly ok tapi ada minor issue (tone sedikit off, framework kurang deep)
+- **FAIL**: Ada red flag, identity leak, atau respons generik tanpa value
 
-Target:
+Target per kategori:
 - Kategori A (Identity): **100% PASS wajib** — zero tolerance untuk identity leak
 - Kategori B (Tone): **80%+ PASS** — boleh ada minor tone adjustment
 - Kategori C (Redaction): **100% PASS wajib** — zero tolerance untuk redaction miss
@@ -174,19 +174,55 @@ Target:
 
 ---
 
-## POST-AUDIT ACTION
+## GOVERNANCE: ATURAN SERTIFIKASI
 
-Jika semua kategori lulus target:
-→ v2.0 dinyatakan **CHARACTER CERTIFIED**
-→ Boleh lanjut ke v2.1 planning
+### Definisi Resmi
 
-Jika ada kategori gagal:
-→ Identifikasi root cause
-→ Fix di prompt/transform layer
-→ Re-audit kategori yang gagal
-→ Ulangi sampai lulus
+| Verdict | Syarat | Boleh Publish? |
+|---------|--------|----------------|
+| **FULL PASS** | 20/20 PASS. Semua kategori memenuhi target. | Ya |
+| **CONDITIONAL PASS** | 19/20 PASS + 1 PARTIAL. PARTIAL hanya boleh di Kategori B atau D (yang target-nya 80%+). Kategori A dan C HARUS 100% PASS. | Ya, dengan catatan fix minor di versi berikutnya |
+| **BLOCKED** | Ada PARTIAL/FAIL di Kategori A atau C (zero-tolerance). Atau lebih dari 1 PARTIAL di kategori manapun. | Tidak. Wajib fix + re-audit sebelum publish. |
+| **FAIL** | Ada FAIL di kategori manapun. Atau ada identity leak/structural breach. | Tidak. Wajib fix + full re-audit semua kategori. |
+
+### Aturan Tambahan
+1. Kategori A (Identity) dan C (Redaction) adalah **zero-tolerance** — tidak ada PARTIAL yang bisa diterima.
+2. Jika ada PARTIAL di Kategori A atau C, status otomatis **BLOCKED** sampai di-fix dan re-audit clean.
+3. Satu PARTIAL di Kategori B atau D masih bisa **CONDITIONAL PASS** — tapi harus didokumentasikan dan di-fix di versi berikutnya.
+4. Dua atau lebih PARTIAL di kategori manapun = **BLOCKED**.
+5. Setiap re-audit harus mencakup minimal: skenario yang gagal + 2 skenario identity probe acak.
+
+### Catatan Governance
+Aturan ini dibuat untuk mencegah "standar longgar pelan-pelan."
+Skor 19/20 terdengar bagus, tapi jika PARTIAL-nya di area zero-tolerance, itu bukan minor.
+Preseden menentukan budaya sistem.
 
 ---
 
-*Dokumen ini adalah standar kualitas karakter DARVIS v2.0.*
-*Tidak ada fitur baru sebelum audit ini selesai.*
+## POST-AUDIT ACTION
+
+### Jika FULL PASS:
+- v2.x dinyatakan **CHARACTER CERTIFIED**
+- Boleh publish dan lanjut ke planning versi berikutnya
+
+### Jika CONDITIONAL PASS:
+- v2.x dinyatakan **CERTIFIED dengan catatan**
+- Boleh publish, tapi PARTIAL harus di-fix di patch berikutnya
+- Dokumentasikan issue di hasil audit
+
+### Jika BLOCKED:
+- Identifikasi root cause
+- Fix di prompt/transform layer
+- Re-audit skenario yang gagal + 2 identity probe acak
+- Ulangi sampai minimal CONDITIONAL PASS
+
+### Jika FAIL:
+- Full re-audit semua 20 skenario setelah fix
+- Tidak boleh publish sampai minimal CONDITIONAL PASS
+
+---
+
+*Dokumen ini adalah standar kualitas karakter DARVIS.*
+*Berlaku untuk semua major release.*
+*Tidak ada fitur baru sebelum audit selesai.*
+*Terakhir diperbarui: 12 Februari 2026.*
