@@ -527,26 +527,45 @@ export default function ChatPage() {
     const now = new Date();
     const dateStr = now.toLocaleDateString("id-ID", { year: "numeric", month: "long", day: "numeric" });
     const timeStr = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
-    let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Percakapan DARVIS</title><style>
-      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 700px; margin: 0 auto; padding: 40px 20px; color: #1a1a1a; font-size: 14px; line-height: 1.6; }
-      h1 { font-size: 20px; margin-bottom: 4px; }
-      .meta { color: #666; font-size: 12px; margin-bottom: 24px; }
-      .msg { margin-bottom: 16px; padding: 12px 16px; border-radius: 8px; }
-      .user { background: #e8edf3; }
-      .assistant { background: #f8f8f8; border: 1px solid #e5e5e5; }
-      .role { font-weight: 600; font-size: 12px; margin-bottom: 4px; color: #555; }
+    const logoUrl = window.location.origin + "/darvis-logo.png";
+    let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Laporan DARVIS</title><style>
+      @page { margin: 20mm 15mm 25mm 15mm; }
+      body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif; max-width: 700px; margin: 0 auto; padding: 0 20px; color: #1a1a1a; font-size: 13px; line-height: 1.65; }
+      .report-header { display: flex; align-items: center; gap: 16px; padding: 20px 0 16px 0; border-bottom: 2px solid #1a1a1a; margin-bottom: 24px; }
+      .report-header img { width: 48px; height: 48px; border-radius: 6px; object-fit: cover; }
+      .report-header-text { flex: 1; }
+      .report-header-text h1 { font-size: 18px; font-weight: 700; margin: 0 0 2px 0; letter-spacing: 0.5px; }
+      .report-header-text .subtitle { font-size: 11px; color: #666; margin: 0; text-transform: uppercase; letter-spacing: 1px; }
+      .report-meta { display: flex; justify-content: space-between; font-size: 11px; color: #888; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #e5e5e5; }
+      .msg { margin-bottom: 14px; padding: 12px 16px; border-radius: 6px; page-break-inside: avoid; }
+      .user { background: #eef1f6; border-left: 3px solid #4a6fa5; }
+      .assistant { background: #f9f9f9; border-left: 3px solid #2d8a56; }
+      .role { font-weight: 700; font-size: 10px; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.8px; }
+      .role-user { color: #4a6fa5; }
+      .role-assistant { color: #2d8a56; }
       .content { white-space: pre-wrap; }
-      hr { border: none; border-top: 1px solid #e5e5e5; margin: 24px 0; }
-      @media print { body { padding: 20px; } }
+      .report-footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid #e5e5e5; text-align: center; font-size: 10px; color: #aaa; }
+      @media print { body { padding: 0; } .report-header { padding-top: 0; } }
     </style></head><body>
-    <h1>Percakapan DARVIS</h1>
-    <p class="meta">${dateStr} ${timeStr} &mdash; ${msgs.length} pesan</p><hr>`;
+    <div class="report-header">
+      <img src="${logoUrl}" alt="DARVIS" />
+      <div class="report-header-text">
+        <h1>DARVIS</h1>
+        <p class="subtitle">Thinking Framework Distributor</p>
+      </div>
+    </div>
+    <div class="report-meta">
+      <span>${dateStr}, ${timeStr}</span>
+      <span>${msgs.length} pesan</span>
+    </div>`;
     msgs.forEach((msg) => {
       const roleLabel = msg.role === "user" ? "Kamu" : "DARVIS";
       const cls = msg.role === "user" ? "user" : "assistant";
+      const roleCls = msg.role === "user" ? "role-user" : "role-assistant";
       const escaped = msg.content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-      html += `<div class="msg ${cls}"><div class="role">${roleLabel}</div><div class="content">${escaped}</div></div>`;
+      html += `<div class="msg ${cls}"><div class="role ${roleCls}">${roleLabel}</div><div class="content">${escaped}</div></div>`;
     });
+    html += `<div class="report-footer">DARVIS &mdash; Thinking Framework Distributor &mdash; &copy; ${now.getFullYear()}</div>`;
     html += `</body></html>`;
     return html;
   }, []);
