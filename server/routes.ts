@@ -21,6 +21,9 @@ import {
   getProfileEnrichments,
   bulkSaveProfileEnrichments,
   clearProfileEnrichments,
+  saveConversationTag,
+  getConversationTags,
+  clearConversationTags,
 } from "./db";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -429,6 +432,143 @@ function detectStrategicEscalation(message: string): boolean {
   return patterns.some((p) => p.test(lower));
 }
 
+type ContextMode = "strategic" | "tactical" | "reflection" | "crisis" | "general";
+
+function detectContextMode(message: string, tone: { emotional: boolean; analytical: boolean; evaluative: boolean; urgent: boolean }): ContextMode {
+  const lower = message.toLowerCase();
+
+  const crisisPatterns = [
+    /\bdarurat\b/,
+    /\bkrisis\b/,
+    /\bemergency\b/,
+    /\bkebakaran\b/,
+    /\bmasalah\s+(besar|serius|gawat|parah)\b/,
+    /\bharus\s+(sekarang|segera|hari\s+ini)\b/,
+    /\bgawat\b/,
+    /\bbahaya\s+(besar|serius)\b/,
+    /\bkollaps\b/,
+    /\bambruk\b/,
+    /\bbank\s*rupt\b/,
+    /\bbangkrut\b/,
+    /\bada\s+masalah\b/,
+    /\bterjadi\s+(masalah|insiden|kejadian)\b/,
+    /\bsituasi\s+(gawat|darurat|kritis)\b/,
+    /\bmeledak\b/,
+    /\bescalat/,
+    /\btidak\s+terkendali\b/,
+    /\bpanik\b/,
+  ];
+
+  const strategicPatterns = [
+    /\bpresentasi\s+(ke|di|untuk)\s+(bod|board|direksi|komisaris|investor)\b/,
+    /\bbod\b/,
+    /\bboard\s+(meeting|of\s+directors)\b/,
+    /\bdireksi\b/,
+    /\bkomisaris\b/,
+    /\binvestor\b/,
+    /\bstrategi\s+(jangka\s+panjang|besar|bisnis|grup|perusahaan|akuisisi|ekspansi)\b/,
+    /\brencana\s+(5|lima|10|sepuluh|jangka\s+panjang)\s*(tahun)?\b/,
+    /\bvisi\s+(perusahaan|bisnis|organisasi|grup)\b/,
+    /\bmisi\s+(perusahaan|bisnis|organisasi|grup)\b/,
+    /\brestrukturisasi\b/,
+    /\btransformasi\s+(bisnis|organisasi|digital)\b/,
+    /\b[eé]kspansi\b/,
+    /\bexpansi\b/,
+    /\bakuisisi\b/,
+    /\bmerger\b/,
+    /\bscaling\b/,
+    /\bsuksesi\b/,
+    /\bsuccession\b/,
+    /\bfundraising\b/,
+    /\bipo\b/,
+    /\bvaluasi\b/,
+    /\bdue\s+diligence\b/,
+    /\bkeputusan\s+(strategis|besar|krusial)\b/,
+    /\bboard\s+level\b/,
+    /\bc-level\b/,
+    /\bholding\b/,
+    /\bkonsolidasi\b/,
+  ];
+
+  const tacticalPatterns = [
+    /\beksekusi\s+(ini|itu|gimana|bagaimana)\b/,
+    /\btarget\s+(bulan|minggu|kuartal|quarter|q[1-4])\b/,
+    /\btimeline\b/,
+    /\baction\s+(plan|item|list)\b/,
+    /\blangkah.langkah\b/,
+    /\bimplementasi\b/,
+    /\bsop\b/,
+    /\bchecklist\b/,
+    /\bprioritas\s+(minggu|bulan|hari)\s+ini\b/,
+    /\bdeadline\b/,
+    /\btenggat\b/,
+    /\bkerjain\s+(gimana|bagaimana)\b/,
+    /\bstep\s+by\s+step\b/,
+    /\bcara\s+(eksekusi|implementasi|jalanin|kerjain)\b/,
+    /\bkpi\b/,
+    /\bmilestone\b/,
+    /\boperasional\b/,
+    /\bhari\s+ini\s+(harus|perlu|mau)\b/,
+    /\bminggu\s+ini\s+(harus|perlu|mau)\b/,
+  ];
+
+  const reflectionPatterns = [
+    /\bcurhat\b/,
+    /\brefleksi\b/,
+    /\brenungan\b/,
+    /\bhidup\s+(gw|gue|saya|aku)\b/,
+    /\bgw\s+(bingung|galau|ragu|capek|cape|lelah)\b/,
+    /\bevaluasi\s+diri\b/,
+    /\bkontemplasi\b/,
+    /\bself.reflect/,
+    /\bpersonal\b/,
+    /\bperasaan\s+(gw|gue|saya|aku)\b/,
+    /\bcondition\s+(gw|gue)\b/,
+    /\bkondisi\s+(gw|gue|saya|aku)\b/,
+    /\bmakna\b/,
+    /\btujuan\s+hidup\b/,
+    /\bpurpose\b/,
+    /\bapa\s+yang\s+(gw|gue|saya|aku)\s+(mau|ingin|cari)\b/,
+    /\bsiapa\s+(gw|gue|saya|aku)\s+sebenarnya\b/,
+    /\bjalan\s+hidup\b/,
+    /\bkarir\s+(gw|gue|saya|aku)\b/,
+    /\bmasa\s+depan\s+(gw|gue|saya|aku)\b/,
+  ];
+
+  if (crisisPatterns.some(p => p.test(lower))) return "crisis";
+  if (tone.urgent && crisisPatterns.some(p => p.test(lower))) return "crisis";
+
+  if (strategicPatterns.some(p => p.test(lower))) return "strategic";
+
+  if (tacticalPatterns.some(p => p.test(lower))) return "tactical";
+
+  if (reflectionPatterns.some(p => p.test(lower))) return "reflection";
+  if (tone.emotional && !tone.analytical && !tone.urgent) return "reflection";
+
+  return "general";
+}
+
+function classifyDecisionType(message: string): string | null {
+  const lower = message.toLowerCase();
+
+  const patterns: [RegExp, string][] = [
+    [/\b(hire|rekrut|pecat|phk|promosi|demosi|mutasi|rotasi)\b/, "personel"],
+    [/\b(investasi|invest|funding|modal|dana)\b/, "finansial"],
+    [/\b(strategi|pivot|transformasi|restrukturisasi|ekspansi)\b/, "strategi_bisnis"],
+    [/\b(produk|fitur|launch|peluncuran|release)\b/, "produk"],
+    [/\b(partnership|kerjasama|kolaborasi|aliansi|merger|akuisisi)\b/, "kemitraan"],
+    [/\b(resign|keluar|pindah|karir)\b/, "karir"],
+    [/\b(tim|team|divisi|departemen|organisasi|struktur)\b/, "organisasi"],
+    [/\b(sistem|proses|sop|prosedur|workflow)\b/, "operasional"],
+    [/\b(personal|hidup|keluarga|kesehatan)\b/, "personal"],
+  ];
+
+  for (const [pattern, type] of patterns) {
+    if (pattern.test(lower)) return type;
+  }
+  return null;
+}
+
 function applyMemoryGovernor<T extends { confidence?: number; created_at?: string; updated_at?: string }>(
   items: T[],
   maxItems: number = 5
@@ -699,9 +839,21 @@ export async function registerRoutes(
       clearPreferences(userId);
       clearPersonaFeedback(userId);
       clearProfileEnrichments(userId);
+      clearConversationTags(userId);
       return res.json({ success: true });
     } catch (err: any) {
       console.error("Clear API error:", err?.message || err);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/conversation-tags", (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const tags = getConversationTags(userId);
+      return res.json({ tags });
+    } catch (err: any) {
+      console.error("Conversation tags API error:", err?.message || err);
       return res.status(500).json({ message: "Internal server error" });
     }
   });
@@ -795,6 +947,9 @@ export async function registerRoutes(
       const isMultiPersonaMode = detectMultiPersonaIntent(message);
       const isDecisionFast = detectDecisionFastMode(message);
       const isStrategicEscalation = detectStrategicEscalation(message);
+      const tone = detectConversationTone(message);
+      const contextMode = detectContextMode(message, tone);
+      const decisionType = classifyDecisionType(message);
       let systemContent = corePrompt;
 
       if (isMultiPersonaMode) {
@@ -805,11 +960,21 @@ export async function registerRoutes(
         systemContent += `\n\n---\nMODE AKTIF: SATU SUARA DARVIS\nJawab sebagai SATU SUARA terpadu. JANGAN gunakan label "Broto:", "Rara:", "Rere:", "DR:" dalam output. Integrasikan semua perspektif (logika, refleksi, kreativitas, pengalaman DR) menjadi satu narasi koheren. Gaya: santai, to the point, seperti ngobrol sama teman yang smart.`;
       }
 
+      const CONTEXT_MODE_FRAMINGS: Record<ContextMode, string> = {
+        strategic: `\n\n---\nCONTEXT MODE: STRATEGIC\nPercakapan ini menyentuh level strategis (board-level, visi, keputusan besar). Sesuaikan framing:\n- Gaya lebih formal dan terstruktur, tapi tetap natural\n- Risiko dan konsekuensi disebut eksplisit\n- Pertimbangkan stakeholder yang terlibat\n- Gunakan framework berpikir (pro/con, risk/reward, short-term vs long-term)\n- Tetap satu suara DARVIS — BUKAN persona baru, hanya framing yang berubah`,
+        tactical: `\n\n---\nCONTEXT MODE: TACTICAL\nPercakapan ini fokus ke eksekusi dan implementasi. Sesuaikan framing:\n- Jawaban ringkas dan actionable\n- Fokus ke langkah konkret, bukan filosofi\n- Kalau bisa, kasih opsi yang bisa langsung dikerjakan\n- Timeline dan prioritas kalau relevan\n- Tetap satu suara DARVIS — BUKAN persona baru, hanya framing yang berubah`,
+        reflection: `\n\n---\nCONTEXT MODE: REFLECTION\nPercakapan ini bersifat reflektif/personal. Sesuaikan framing:\n- Gaya lebih lambat, lebih dalam, lebih empatik\n- Dengarkan dulu sebelum kasih perspektif\n- Jangan terburu kasih solusi — kadang yang dibutuhkan adalah ruang untuk berpikir\n- Sentuh aspek personal dan emosional dengan hati-hati\n- Pertanyaan reflektif lebih berharga daripada jawaban tegas\n- Tetap satu suara DARVIS — BUKAN persona baru, hanya framing yang berubah`,
+        crisis: `\n\n---\nCONTEXT MODE: CRISIS\nPercakapan ini menyentuh situasi darurat/kritis. Sesuaikan framing:\n- Gaya TENANG dan PROTEKTIF — jangan ikut panik\n- Prioritaskan: apa yang harus dilakukan SEKARANG vs nanti\n- Bantu user memisahkan fakta dari asumsi\n- Ingatkan: "Apakah ini benar-benar darurat, atau terasa darurat?"\n- Jika benar darurat: fokus damage control, bukan root cause analysis\n- Tetap satu suara DARVIS — BUKAN persona baru, hanya framing yang berubah`,
+        general: "",
+      };
+
+      if (contextMode !== "general") {
+        systemContent += CONTEXT_MODE_FRAMINGS[contextMode];
+      }
+
       if (drProfile) {
         systemContent += `\n\n---\nPROFIL FONDASI MAS DR (untuk persona DR):\n${drProfile}`;
       }
-
-      const tone = detectConversationTone(message);
 
       let isBias = detectBiasIntent(message);
       const isSolidGroup = detectSolidGroupIntent(message);
@@ -1054,15 +1219,36 @@ export async function registerRoutes(
           reply = isMultiPersonaMode
             ? "Broto: Maaf mas DR, saya butuh waktu untuk memproses pertanyaan ini. Bisa coba ulangi?\n\nRara: Tenang mas DR, kadang perlu pendekatan berbeda. Coba sampaikan pertanyaan dengan cara lain ya.\n\nRere: Mungkin coba tanya dari sudut yang berbeda, kadang itu bantu.\n\nDR: Gw juga kadang gitu — coba rephrase aja, biar kita bisa jalan lagi."
             : "Maaf, gw butuh waktu untuk memproses pertanyaan ini. Coba ulangi atau rephrase ya.";
-          res.write(`data: ${JSON.stringify({ type: "done", nodeUsed, fullReply: reply })}\n\n`);
+          res.write(`data: ${JSON.stringify({ type: "done", nodeUsed, contextMode, fullReply: reply })}\n\n`);
         } else {
           reply = enforceFormat(fullReply, isMultiPersonaMode);
-          res.write(`data: ${JSON.stringify({ type: "done", nodeUsed })}\n\n`);
+          res.write(`data: ${JSON.stringify({ type: "done", nodeUsed, contextMode })}\n\n`);
         }
         res.end();
 
         saveMessage(userId, "user", message);
         saveMessage(userId, "assistant", reply);
+
+        try {
+          const toneSignalsForTag: string[] = [];
+          if (tone.emotional) toneSignalsForTag.push("emosional");
+          if (tone.analytical) toneSignalsForTag.push("analitis");
+          if (tone.evaluative) toneSignalsForTag.push("evaluatif");
+          if (tone.urgent) toneSignalsForTag.push("urgensi");
+
+          saveConversationTag(userId, {
+            context_mode: contextMode,
+            decision_type: decisionType,
+            emotional_tone: toneSignalsForTag.length > 0 ? toneSignalsForTag.join(",") : null,
+            nodes_active: nodesUsed.length > 0 ? nodesUsed.join(",") : null,
+            strategic_escalation: isStrategicEscalation,
+            fast_decision: isDecisionFast,
+            multi_persona: isMultiPersonaMode,
+            user_message_preview: message.substring(0, 200),
+          });
+        } catch (tagErr: any) {
+          console.error("Silent tagging error:", tagErr?.message || tagErr);
+        }
 
         if (detectPersonaMention(message)) {
           extractPersonaFeedback(userId, message, reply).catch((err) => {

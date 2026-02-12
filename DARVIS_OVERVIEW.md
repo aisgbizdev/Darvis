@@ -1,4 +1,4 @@
-# DARVIS (DiAn Raha Vision) — Overview Lengkap v1.1
+# DARVIS (DiAn Raha Vision) — Overview Lengkap v2.0
 
 Dokumen ini merangkum APA itu DARVIS, APA yang dia punya, dan BAGAIMANA dia bekerja.
 Untuk dibawa sebagai konteks diskusi dan evaluasi.
@@ -351,3 +351,47 @@ Upgrade berdasarkan review arsitektural dari Broto (GPTs). Fokus: mencegah DARVI
 - Deteksi keputusan besar (investasi, resign, partnership, legal)
 - Tambah layer: risiko sistemik, risiko reputasi, risiko jangka panjang
 - Ingatkan user bahwa keputusan ini irreversible dan butuh due diligence
+
+---
+
+## 17. v2.0 — EXECUTIVE INTELLIGENCE (Phase 1)
+
+Evolusi DARVIS dari thinking companion menjadi "Executive Intelligence" — tanpa kehilangan identitas digital twin. Prinsip: ambil kemampuan Jarvis tanpa kehilangan DNA DARVIS.
+
+### 17.1 Context Mode Engine
+
+DARVIS secara otomatis mendeteksi konteks percakapan dan menyesuaikan FRAMING jawaban. Context Mode adalah framing layer, BUKAN persona baru.
+
+**5 Context Modes:**
+| Mode | Kapan Aktif | Gaya Framing |
+|------|------------|--------------|
+| **Strategic** | Board-level, visi, keputusan besar | Formal & terstruktur, risiko eksplisit, stakeholder analysis |
+| **Tactical** | Eksekusi, implementasi, langkah konkret | Ringkas & actionable, opsi langsung, timeline/prioritas |
+| **Reflection** | Introspeksi, personal, evaluasi diri | Lambat & empatik, pertanyaan reflektif > jawaban tegas |
+| **Crisis** | Darurat, panik, tekanan tinggi | Tenang & protektif, prioritas SEKARANG vs nanti, fakta vs asumsi |
+| **General** | Default | Tanpa framing tambahan |
+
+**Deteksi:** 50+ pola kata per mode, auto-detect dari pesan user.
+**UI:** Badge kecil di bawah pesan terakhir (Strategic/Tactical/Reflection/Crisis) — subtle, tidak mengganggu.
+
+### 17.2 Silent Tagging System
+
+Setiap percakapan di-tag secara otomatis di database (tanpa UI, tanpa notifikasi) sebagai fondasi untuk Phase 2 Pattern Detection.
+
+**Data yang di-tag:**
+- `context_mode` — mode konteks yang terdeteksi
+- `decision_type` — klasifikasi keputusan (personel, finansial, strategi_bisnis, produk, kemitraan, karir, organisasi, operasional, personal)
+- `emotional_tone` — sinyal emosi (emosional, analitis, evaluatif, urgensi)
+- `nodes_active` — knowledge node mana yang aktif
+- `strategic_escalation` — apakah eskalasi strategis dipicu
+- `fast_decision` — apakah Decision Fast Mode aktif
+- `multi_persona` — apakah mode multi-persona diminta
+
+**Tabel:** `conversation_tags` di SQLite, dengan index untuk query cepat.
+**Filosofi:** Kumpulkan data dulu, analisis nanti. Pattern Detection di Phase 2 butuh historical data yang cukup.
+
+### 17.3 Roadmap v2.0
+
+- **Phase 1 (DONE):** Context Mode Engine + Silent Tagging
+- **Phase 2 (NEXT):** Pattern Detection — analisis pola keputusan, emosi, dan topik dari data tagging
+- **Phase 3:** Executive Refinement — personalisasi executive framing berdasarkan pola yang terdeteksi

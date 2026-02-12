@@ -1,7 +1,7 @@
-# DARVIS - DiAn Raha Vision v1.1
+# DARVIS - DiAn Raha Vision v2.0
 
 ## Overview
-DARVIS is an AI-powered thinking companion web application with quad-persona output (Broto, Rara, Rere, DR). Built for mas DR as a tool to help think more clearly before making decisions. Long-term vision: become a digital twin of mas DR's thinking style — so others can consult DARVIS and get perspectives reflecting how DR thinks, questions, and decides.
+DARVIS is an AI-powered thinking companion web application evolving into "Executive Intelligence" — digital twin of mas DR with context-aware framing. Built for mas DR as a tool to help think more clearly before making decisions. Long-term vision: become a digital twin of mas DR's thinking style — so others can consult DARVIS and get perspectives reflecting how DR thinks, questions, and decides.
 
 ## User Preferences
 - **Bahasa**: Selalu gunakan Bahasa Indonesia untuk semua komunikasi dan respons. Jangan campur dengan bahasa Inggris supaya tidak salah tafsir.
@@ -17,7 +17,7 @@ DARVIS is an AI-powered thinking companion web application with quad-persona out
 - `client/src/pages/chat.tsx` - Main chat UI page (4-persona display)
 - `server/routes.ts` - /api/chat endpoint with OpenAI integration
 - `shared/schema.ts` - ChatMessage, ChatRequest, ChatResponse types
-- `prompts/DARVIS_CORE.md` - Core system prompt (quad-persona rules v1.1)
+- `prompts/DARVIS_CORE.md` - Core system prompt (quad-persona rules v2.0)
 - `prompts/DARVIS_PROFILE_DR.md` - DR's foundational profile (digital twin knowledge base)
 - `prompts/DARVIS_NODE_SolidGroup.md` - Solid Group context node
 - `prompts/DARVIS_NODE_BIAS.md` - Behavioral bias & emotional context node
@@ -53,6 +53,24 @@ DARVIS is an AI-powered thinking companion web application with quad-persona out
 - Post-processing to enforce 4-persona format
 - Proactive Reflection across all personas
 - Tone Detection: emotional/analytical/evaluative/urgent
+- **v2.0 Context Mode Engine**: Auto-detect strategic/tactical/reflection/crisis context, inject framing layer
+- **v2.0 Silent Tagging System**: Conversation metadata captured in database for future Pattern Detection
+- Context mode UI indicator (subtle badge below last assistant message)
+
+## Context Mode Engine (v2.0)
+- **5 modes**: strategic, tactical, reflection, crisis, general (default)
+- Auto-detection via 50+ keyword patterns per mode
+- Framing layer injected into system prompt — identity unchanged
+- Frontend badge shows active mode (purple/sky/rose/red) when not "general"
+- Detection function: `detectContextMode()` in server/routes.ts
+- Decision classifier: `classifyDecisionType()` — 9 categories
+
+## Silent Tagging System (v2.0)
+- Table: `conversation_tags` in SQLite
+- Tags per conversation: context_mode, decision_type, emotional_tone, nodes_active, strategic_escalation, fast_decision, multi_persona
+- Purely backend — no UI, no user notification
+- Foundation for Phase 2 Pattern Detection
+- Database functions: `saveConversationTag()`, `getConversationTags()` in server/db.ts
 
 ## Node System
 - **NODE_SOLIDGROUP**: Solid Group business context
@@ -130,6 +148,7 @@ DARVIS is an AI-powered thinking companion web application with quad-persona out
 - **Strategic Escalation Logic**: Layer risiko sistemik/reputasi/jangka panjang untuk keputusan besar
 
 ## Recent Changes
+- 2026-02-12: **v2.0 Phase 1 — Executive Intelligence** — Context Mode Engine (5 modes: strategic/tactical/reflection/crisis/general), Silent Tagging System, context mode UI indicator, DARVIS_CORE.md updated with context mode rules
 - 2026-02-12: **v1.1 — Broto Review improvements** — anti echo-chamber, memory governor, decision fast mode, confidence tone, resource softening, strategic escalation
 - 2026-02-12: **Session isolation** — setiap device/browser dapat session unik, chat history tidak bocor antar user
 - 2026-02-12: Streaming SSE responses — jawaban muncul real-time kata per kata

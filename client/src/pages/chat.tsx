@@ -133,6 +133,13 @@ function UserBubble({ content, index, images }: { content: string; index: number
   );
 }
 
+const CONTEXT_MODE_LABELS: Record<string, { label: string; color: string }> = {
+  strategic: { label: "Strategic", color: "text-purple-500 dark:text-purple-400" },
+  tactical: { label: "Tactical", color: "text-sky-500 dark:text-sky-400" },
+  reflection: { label: "Reflection", color: "text-rose-500 dark:text-rose-400" },
+  crisis: { label: "Crisis", color: "text-red-500 dark:text-red-400" },
+};
+
 function TypingIndicator() {
   return (
     <div className="flex items-center gap-2 max-w-full sm:max-w-[75%]" data-testid="status-typing">
@@ -143,6 +150,16 @@ function TypingIndicator() {
         </div>
       </Card>
     </div>
+  );
+}
+
+function ContextModeBadge({ mode }: { mode: string }) {
+  const config = CONTEXT_MODE_LABELS[mode];
+  if (!config) return null;
+  return (
+    <span className={`text-[10px] font-medium ${config.color} opacity-70`} data-testid={`badge-context-mode-${mode}`}>
+      {config.label} mode
+    </span>
   );
 }
 
@@ -172,7 +189,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   gaya_bahasa: "Gaya Bahasa",
 };
 
-function parseSSELine(line: string): { type: string; content?: string; nodeUsed?: string | null; fullReply?: string; message?: string } | null {
+function parseSSELine(line: string): { type: string; content?: string; nodeUsed?: string | null; contextMode?: string | null; fullReply?: string; message?: string } | null {
   if (!line.startsWith("data: ")) return null;
   try {
     return JSON.parse(line.slice(6));
@@ -291,6 +308,7 @@ export default function ChatPage() {
 
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
+  const [currentContextMode, setCurrentContextMode] = useState<string | null>(null);
 
   const sendMessage = useCallback(async (payload: { message: string; images?: string[] }) => {
     setIsStreaming(true);
@@ -332,6 +350,8 @@ export default function ChatPage() {
             const finalContent = parsed.fullReply || accumulated;
             setMessages((prev) => [...prev, { role: "assistant", content: finalContent }]);
             setStreamingContent("");
+            if (parsed.contextMode) setCurrentContextMode(parsed.contextMode);
+            else setCurrentContextMode(null);
           } else if (parsed.type === "error") {
             setMessages((prev) => [...prev, {
               role: "assistant",
@@ -643,6 +663,11 @@ export default function ChatPage() {
             <AssistantBubble content={streamingContent} index={messages.length} />
           )}
           {isStreaming && !streamingContent && <TypingIndicator />}
+          {!isStreaming && currentContextMode && currentContextMode !== "general" && messages.length > 0 && messages[messages.length - 1]?.role === "assistant" && (
+            <div className="flex justify-start pl-1" data-testid="container-context-mode">
+              <ContextModeBadge mode={currentContextMode} />
+            </div>
+          )}
         </div>
       </div>
 

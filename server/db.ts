@@ -319,4 +319,80 @@ export function clearProfileEnrichments(userId: string) {
   db.prepare(`DELETE FROM profile_enrichments WHERE user_id = ?`).run(userId);
 }
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS conversation_tags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    context_mode TEXT NOT NULL DEFAULT 'general',
+    decision_type TEXT,
+    emotional_tone TEXT,
+    nodes_active TEXT,
+    strategic_escalation INTEGER NOT NULL DEFAULT 0,
+    fast_decision INTEGER NOT NULL DEFAULT 0,
+    multi_persona INTEGER NOT NULL DEFAULT 0,
+    user_message_preview TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_conversation_tags_user_id ON conversation_tags(user_id);
+  CREATE INDEX IF NOT EXISTS idx_conversation_tags_context_mode ON conversation_tags(context_mode);
+  CREATE INDEX IF NOT EXISTS idx_conversation_tags_created_at ON conversation_tags(created_at);
+`);
+
+export interface ConversationTag {
+  id: number;
+  user_id: string;
+  context_mode: string;
+  decision_type: string | null;
+  emotional_tone: string | null;
+  nodes_active: string | null;
+  strategic_escalation: number;
+  fast_decision: number;
+  multi_persona: number;
+  user_message_preview: string | null;
+  created_at: string;
+}
+
+export function saveConversationTag(
+  userId: string,
+  tag: {
+    context_mode: string;
+    decision_type?: string | null;
+    emotional_tone?: string | null;
+    nodes_active?: string | null;
+    strategic_escalation?: boolean;
+    fast_decision?: boolean;
+    multi_persona?: boolean;
+    user_message_preview?: string | null;
+  }
+) {
+  db.prepare(`
+    INSERT INTO conversation_tags (user_id, context_mode, decision_type, emotional_tone, nodes_active, strategic_escalation, fast_decision, multi_persona, user_message_preview)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    userId,
+    tag.context_mode,
+    tag.decision_type || null,
+    tag.emotional_tone || null,
+    tag.nodes_active || null,
+    tag.strategic_escalation ? 1 : 0,
+    tag.fast_decision ? 1 : 0,
+    tag.multi_persona ? 1 : 0,
+    tag.user_message_preview || null
+  );
+}
+
+export function getConversationTags(userId: string, limit: number = 50): ConversationTag[] {
+  return db.prepare(`
+    SELECT * FROM conversation_tags
+    WHERE user_id = ?
+    ORDER BY created_at DESC
+    LIMIT ?
+  `).all(userId, limit) as ConversationTag[];
+}
+
+export function clearConversationTags(userId: string) {
+  db.prepare(`DELETE FROM conversation_tags WHERE user_id = ?`).run(userId);
+}
+
 export default db;
