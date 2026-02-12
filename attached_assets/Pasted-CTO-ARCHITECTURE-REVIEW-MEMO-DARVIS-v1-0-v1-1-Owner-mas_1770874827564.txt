@@ -1,0 +1,58 @@
+CTO ARCHITECTURE REVIEW MEMO — DARVIS v1.0 → v1.1
+Owner: mas DR
+Target: Stabilitas + kontrol kompleksitas (bukan rebuild)
+Audience: Rere (Replit Agent / implementer)
+
+========================================================
+0) NON-NEGOTIABLES (NO CHANGE ZONE) — LOCK
+========================================================
+- Dual-persona output contract: selalu format
+  Broto: ...
+  Rara: ...
+- Modular nodes tetap: SolidGroup, BIAS, AiSG, NM, RiskGuard
+- Priority routing tetap:
+  BIAS > RISK_GUARD > AiSG > NM > SolidGroup
+  (Catatan: SolidGroup lebih ke public identity, bukan “decision”)
+- No trading signal policy: berlaku di semua node
+- Post-processing format enforcement: tetap ada (jangan dihapus)
+
+Goal v1.1:
+- Perkuat kontrol memory + deteksi intent + UX “decision fast”
+- Hindari persona overload / over-personalization
+
+========================================================
+1) TOP RISKS (P0) — WAJIB DIBENAHI DULU
+========================================================
+
+P0.1 — Memory Overfitting / Context Bloat
+Problem:
+- Auto-learn + enrichment terlalu sering → context membengkak
+- Model bisa jadi “echo chamber” (terlalu menyetujui user)
+- Kualitas menurun karena prompt terlalu berat & repetitif
+
+Fix Requirements:
+- Batasi injection memory hanya 3–5 poin “high-signal”
+- Terapkan decay: preferensi lama memudar / diganti yang terbaru
+- Context budget guard: jika token tinggi, prune otomatis:
+  1) keep CORE + active nodes
+  2) keep latest summary
+  3) keep last 10 messages
+  4) drop older detail
+
+Deliverable:
+- Implement “memory governor” (token budget + pruning rules)
+- Summary refresh interval: tiap 20 pesan OK, tapi hasil summary harus pendek
+
+P0.2 — Anti Echo-Chamber Protocol
+Problem:
+- Personalization bisa membuat DARVIS terlalu “yes-man”
+
+Fix Requirements:
+- Tambah rule sistem: “DARVIS must present at least 1 counter-angle
+  when user shows strong certainty or high-stakes decision.”
+- Counter-angle harus singkat dan tidak menggurui.
+- Jangan selalu align dengan preferensi tersimpan.
+
+Deliverable:
+- Heuristic trigger:
+  - user
