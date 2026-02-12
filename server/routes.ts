@@ -591,15 +591,22 @@ Respond ONLY with valid JSON array.`;
   }
 }
 
+function getUserId(req: any): string {
+  if (!req.session.userId) {
+    req.session.userId = `user_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  }
+  return req.session.userId;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  const USER_ID = "mas_dr";
 
-  app.get("/api/history", (_req, res) => {
+  app.get("/api/history", (req, res) => {
     try {
-      const msgs = getAllMessages(USER_ID);
+      const userId = getUserId(req);
+      const msgs = getAllMessages(userId);
       const response: HistoryResponse = {
         messages: msgs.map((m) => ({
           role: m.role as "user" | "assistant",
@@ -613,10 +620,11 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/clear", (_req, res) => {
+  app.post("/api/clear", (req, res) => {
     try {
-      clearHistory(USER_ID);
-      clearPreferences(USER_ID);
+      const userId = getUserId(req);
+      clearHistory(userId);
+      clearPreferences(userId);
       clearPersonaFeedback();
       clearProfileEnrichments();
       return res.json({ success: true });
@@ -646,9 +654,10 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/preferences", (_req, res) => {
+  app.get("/api/preferences", (req, res) => {
     try {
-      const preferences = getLearnedPreferences(USER_ID);
+      const userId = getUserId(req);
+      const preferences = getLearnedPreferences(userId);
       return res.json({ preferences });
     } catch (err: any) {
       console.error("Preferences API error:", err?.message || err);
@@ -656,9 +665,10 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/seed-profile", async (_req, res) => {
+  app.post("/api/seed-profile", async (req, res) => {
     try {
-      const existingPrefs = getLearnedPreferences(USER_ID);
+      const userId = getUserId(req);
+      const existingPrefs = getLearnedPreferences(userId);
       const hasSeed = existingPrefs.some(p => p.source_summary === "SEED_FROM_PROFILE");
       if (hasSeed) {
         return res.json({ success: true, message: "Profile already seeded", count: 0 });
@@ -681,7 +691,7 @@ export async function registerRoutes(
         { category: "preferensi_komunikasi", insight: "Tidak suka dipanggil 'Boss' — terlalu hierarkis. Panggilan yang biasa: DR, Raha, Bapak, Bapa, Abah, YKW, mas DR", confidence: 0.95, source_summary: "SEED_FROM_PROFILE" },
       ];
 
-      bulkUpsertPreferences(USER_ID, seedPreferences);
+      bulkUpsertPreferences(userId, seedPreferences);
       return res.json({ success: true, message: "Profile seeded successfully", count: seedPreferences.length });
     } catch (err: any) {
       console.error("Seed profile error:", err?.message || err);
@@ -691,6 +701,7 @@ export async function registerRoutes(
 
   app.post("/api/chat", async (req, res) => {
     try {
+      const userId = getUserId(req);
       const parsed = chatRequestSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid request body" });
@@ -869,7 +880,7 @@ export async function registerRoutes(
         systemContent += enrichBlock;
       }
 
-      const learnedPrefs = getLearnedPreferences(USER_ID);
+      const learnedPrefs = getLearnedPreferences(userId);
       if (learnedPrefs.length > 0) {
         const grouped: Record<string, string[]> = {};
         for (const pref of learnedPrefs) {
@@ -891,7 +902,7 @@ export async function registerRoutes(
       const apiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
       apiMessages.push({ role: "system", content: systemContent });
 
-      const summary = getSummary(USER_ID);
+      const summary = getSummary(userId);
       if (summary) {
         apiMessages.push({
           role: "system",
@@ -899,7 +910,7 @@ export async function registerRoutes(
         });
       }
 
-      const recentMessages = getLastMessages(USER_ID, 20);
+      const recentMessages = getLastMessages(userId, 20);
       for (const msg of recentMessages) {
         apiMessages.push({
           role: msg.role === "user" ? "user" : "assistant",
@@ -964,8 +975,8 @@ export async function registerRoutes(
         }
         res.end();
 
-        saveMessage(USER_ID, "user", message);
-        saveMessage(USER_ID, "assistant", reply);
+        saveMessage(userId, "user", message);
+        saveMessage(userId, "assistant", reply);
 
         if (detectPersonaMention(message)) {
           extractPersonaFeedback(message, reply).catch((err) => {
@@ -979,15 +990,15 @@ export async function registerRoutes(
           });
         }
 
-        const msgCount = getMessageCount(USER_ID);
+        const msgCount = getMessageCount(userId);
         if (msgCount > 0 && msgCount % 20 === 0) {
-          generateSummary(USER_ID).catch((err) => {
+          generateSummary(userId).catch((err) => {
             console.error("Auto-summary error:", err?.message || err);
           });
         }
 
         if (msgCount > 0 && msgCount % 10 === 0) {
-          extractPreferences(USER_ID).catch((err) => {
+          extractPreferences(userId).catch((err) => {
             console.error("Auto-learn error:", err?.message || err);
           });
         }
