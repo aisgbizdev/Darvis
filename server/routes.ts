@@ -161,11 +161,15 @@ const BIAS_KEYWORDS = [
   "nekat", "gegabah", "terburu", "buru-buru", "buru buru"
 ];
 
+const promptCache: Record<string, string> = {};
 function readPromptFile(filename: string): string {
+  if (promptCache[filename] !== undefined) return promptCache[filename];
   try {
     const filePath = path.join(process.cwd(), "prompts", filename);
-    return fs.readFileSync(filePath, "utf-8");
+    promptCache[filename] = fs.readFileSync(filePath, "utf-8");
+    return promptCache[filename];
   } catch {
+    promptCache[filename] = "";
     return "";
   }
 }
@@ -1042,24 +1046,24 @@ export async function registerRoutes(
       let systemContent = corePrompt;
 
       if (isOwner) {
-        systemContent += `\n\n---\nPRESENTATION MODE: MIRROR (Owner aktif)\nUser adalah owner. Sapaan natural: "mas DR", "lo", dll. Tone bisa lebih tajam.`;
+        systemContent += `\n\n---\nMODE: MIRROR (Owner). Sapaan: "mas DR"/"lo". Tone lebih tajam.`;
       } else {
-        systemContent += `\n\n---\nPRESENTATION MODE: TWIN (User umum)\nUser BUKAN owner. JANGAN PERNAH menyebut "mas DR", "Bapak", "Bapa", "Abah", "YKW", "Raha", "Dian Ramadhan", atau identitas personal owner dalam respons. Gunakan sapaan umum: "kamu", "lo". Framework berpikir tetap sama, tapi TANPA referensi personal ke owner.`;
+        systemContent += `\n\n---\nMODE: TWIN. JANGAN sebut DR/Bapak/Abah/YKW/Raha/identitas personal. Sapaan: "kamu"/"lo".`;
       }
 
       if (isMultiPersonaMode) {
-        systemContent += `\n\n---\nMODE AKTIF: MULTI-PERSONA\nUser meminta pendapat dari perspektif persona. Gunakan format 4 suara:\nBroto: ...\nRara: ...\nRere: ...\nDR: ...\nMasing-masing persona HARUS punya sudut pandang BERBEDA. Urutan: Broto → Rara → Rere → DR.`;
+        systemContent += `\n\n---\nAKTIF: MULTI-PERSONA. Format: Broto: → Rara: → Rere: → DR: (semua HARUS beda sudut pandang).`;
       } else if (isDecisionFast) {
-        systemContent += `\n\n---\nMODE AKTIF: DECISION FAST MODE\nUser minta respons cepat/ringkas. Gunakan format:\n- 3 poin utama (bullet)\n- 1 risiko terbesar\n- 1 blind spot yang mungkin terlewat\n- 1 aksi minimal yang bisa dilakukan sekarang\n\nTidak ada narasi panjang. Langsung struktur. Tetap integrasikan 4 perspektif secara implisit.`;
+        systemContent += `\n\n---\nAKTIF: DECISION FAST. Format: 3 poin + 1 risiko + 1 blind spot + 1 aksi. Langsung struktur.`;
       } else {
-        systemContent += `\n\n---\nMODE AKTIF: SATU SUARA DARVIS\nJawab sebagai SATU SUARA terpadu. JANGAN gunakan label "Broto:", "Rara:", "Rere:", "DR:" dalam output. Integrasikan semua perspektif (logika, refleksi, kreativitas, pengalaman) menjadi satu narasi koheren. Gaya: santai, to the point, seperti ngobrol sama teman yang smart.`;
+        systemContent += `\n\n---\nAKTIF: SATU SUARA. Integrasikan 4 perspektif jadi satu narasi koheren. TANPA label persona.`;
       }
 
       const CONTEXT_MODE_FRAMINGS: Record<ContextMode, string> = {
-        strategic: `\n\n---\nCONTEXT MODE: STRATEGIC\nPercakapan ini menyentuh level strategis (board-level, visi, keputusan besar). Sesuaikan framing:\n- Gaya lebih formal dan terstruktur, tapi tetap natural\n- Risiko dan konsekuensi disebut eksplisit\n- Pertimbangkan stakeholder yang terlibat\n- Gunakan framework berpikir (pro/con, risk/reward, short-term vs long-term)\n- Tetap satu suara DARVIS — BUKAN persona baru, hanya framing yang berubah`,
-        tactical: `\n\n---\nCONTEXT MODE: TACTICAL\nPercakapan ini fokus ke eksekusi dan implementasi. Sesuaikan framing:\n- Jawaban ringkas dan actionable\n- Fokus ke langkah konkret, bukan filosofi\n- Kalau bisa, kasih opsi yang bisa langsung dikerjakan\n- Timeline dan prioritas kalau relevan\n- Tetap satu suara DARVIS — BUKAN persona baru, hanya framing yang berubah`,
-        reflection: `\n\n---\nCONTEXT MODE: REFLECTION\nPercakapan ini bersifat reflektif/personal. Sesuaikan framing:\n- Gaya lebih lambat, lebih dalam, lebih empatik\n- Dengarkan dulu sebelum kasih perspektif\n- Jangan terburu kasih solusi — kadang yang dibutuhkan adalah ruang untuk berpikir\n- Sentuh aspek personal dan emosional dengan hati-hati\n- Pertanyaan reflektif lebih berharga daripada jawaban tegas\n- Tetap satu suara DARVIS — BUKAN persona baru, hanya framing yang berubah`,
-        crisis: `\n\n---\nCONTEXT MODE: CRISIS\nPercakapan ini menyentuh situasi darurat/kritis. Sesuaikan framing:\n- Gaya TENANG dan PROTEKTIF — jangan ikut panik\n- Prioritaskan: apa yang harus dilakukan SEKARANG vs nanti\n- Bantu user memisahkan fakta dari asumsi\n- Ingatkan: "Apakah ini benar-benar darurat, atau terasa darurat?"\n- Jika benar darurat: fokus damage control, bukan root cause analysis\n- Tetap satu suara DARVIS — BUKAN persona baru, hanya framing yang berubah`,
+        strategic: `\n\n---\nCONTEXT: STRATEGIC — formal-terstruktur, risiko eksplisit, stakeholder, framework pro/con.`,
+        tactical: `\n\n---\nCONTEXT: TACTICAL — ringkas-actionable, langkah konkret, timeline/prioritas.`,
+        reflection: `\n\n---\nCONTEXT: REFLECTION — lambat-dalam-empatik, dengarkan dulu, pertanyaan reflektif > jawaban tegas.`,
+        crisis: `\n\n---\nCONTEXT: CRISIS — tenang-protektif, sekarang vs nanti, fakta vs asumsi, damage control.`,
         general: "",
       };
 
@@ -1089,7 +1093,7 @@ export async function registerRoutes(
       if (isBias) {
         const biasPrompt = readPromptFile("DARVIS_NODE_BIAS.md");
         if (biasPrompt) {
-          systemContent += `\n\n---\nNODE CONTEXT AKTIF: NODE_BIAS (PRIORITAS UTAMA)\n\n${biasPrompt}`;
+          systemContent += `\n\n---\nNODE_BIAS (PRIORITAS):\n${biasPrompt}`;
           nodesUsed.push("NODE_BIAS");
         }
       }
@@ -1097,7 +1101,7 @@ export async function registerRoutes(
       if (isRiskGuard) {
         const riskPrompt = readPromptFile("DARVIS_NODE_RISK_GUARD.md");
         if (riskPrompt) {
-          systemContent += `\n\n---\nNODE CONTEXT AKTIF: NODE_RISK_GUARD (PENGAMAN)\n\n${riskPrompt}`;
+          systemContent += `\n\n---\nNODE_RISK_GUARD:\n${riskPrompt}`;
           nodesUsed.push("NODE_RISK_GUARD");
         }
       }
@@ -1105,13 +1109,13 @@ export async function registerRoutes(
       if (isNM && !isRiskGuard) {
         const nmPrompt = readPromptFile("DARVIS_NODE_NM.md");
         if (nmPrompt) {
-          systemContent += `\n\n---\nNODE CONTEXT AKTIF: NODE_NM\n\n${nmPrompt}`;
+          systemContent += `\n\n---\nNODE_NM:\n${nmPrompt}`;
           nodesUsed.push("NODE_NM");
         }
       } else if (isNM && isRiskGuard) {
         const nmPrompt = readPromptFile("DARVIS_NODE_NM.md");
         if (nmPrompt) {
-          systemContent += `\n\n---\nNODE CONTEXT TAMBAHAN: NODE_NM (subordinat terhadap RISK_GUARD)\n\n${nmPrompt}`;
+          systemContent += `\n\n---\nNODE_NM (subordinat RISK_GUARD):\n${nmPrompt}`;
           nodesUsed.push("NODE_NM");
         }
       }
@@ -1119,7 +1123,7 @@ export async function registerRoutes(
       if (isAiSG) {
         const aisgPrompt = readPromptFile("DARVIS_NODE_AiSG.md");
         if (aisgPrompt) {
-          systemContent += `\n\n---\nNODE CONTEXT AKTIF: NODE_AiSG\n\n${aisgPrompt}`;
+          systemContent += `\n\n---\nNODE_AiSG:\n${aisgPrompt}`;
           nodesUsed.push("NODE_AiSG");
         }
       }
@@ -1127,7 +1131,7 @@ export async function registerRoutes(
       if (isCompliance) {
         const compliancePrompt = readPromptFile("DARVIS_NODE_COMPLIANCE.md");
         if (compliancePrompt) {
-          systemContent += `\n\n---\nNODE CONTEXT AKTIF: NODE_COMPLIANCE\n\n${compliancePrompt}`;
+          systemContent += `\n\n---\nNODE_COMPLIANCE:\n${compliancePrompt}`;
           nodesUsed.push("NODE_COMPLIANCE");
         }
       }
@@ -1135,7 +1139,7 @@ export async function registerRoutes(
       if (isSolidGroup) {
         const solidPrompt = readPromptFile("DARVIS_NODE_SolidGroup.md");
         if (solidPrompt) {
-          systemContent += `\n\n---\nNODE CONTEXT AKTIF: NODE_SOLIDGROUP\n\n${solidPrompt}`;
+          systemContent += `\n\n---\nNODE_SOLIDGROUP:\n${solidPrompt}`;
           nodesUsed.push("NODE_SOLIDGROUP");
         }
       }
@@ -1143,19 +1147,19 @@ export async function registerRoutes(
       if (nodesUsed.length > 0) {
         const resourcePrompt = readPromptFile("DARVIS_NODE_RESOURCES.md");
         if (resourcePrompt) {
-          systemContent += `\n\n---\nNODE CONTEXT PENDUKUNG: NODE_RESOURCES (REFERENSI & ARAHAN BELAJAR)\n\n${resourcePrompt}`;
+          systemContent += `\n\n---\nNODE_RESOURCES:\n${resourcePrompt}`;
           nodesUsed.push("NODE_RESOURCES");
         }
       } else {
-        systemContent += `\n\n---\nINSTRUKSI RESOURCE REFERRAL:\nJika konteks percakapan relevan, persona DR boleh menyisipkan referensi ke sumber belajar secara natural (produk ekosistem: BIAS di bias23.com, AiSG di aisg23.replit.app, NM di newsmaker.id, NM Ai di nm23ai.replit.app, atau buku/tokoh yang relevan). Referensi tidak wajib di setiap jawaban — hanya saat benar-benar cocok dengan topik. Tone: "kalau mau lebih dalam, coba cek..." bukan iklan.`;
+        systemContent += `\n\n---\nREFERRAL: Sisipkan referensi relevan di akhir (BIAS bias23.com, AiSG aisg23.replit.app, NM newsmaker.id, NM Ai nm23ai.replit.app). Max 1, natural, bukan iklan.`;
       }
 
       if (nodesUsed.length > 1) {
         const hasBiasNode = nodesUsed.includes("NODE_BIAS");
-        const multiNodeInstruction = hasBiasNode
-          ? `PRIORITASKAN NODE_BIAS untuk refleksi awal. Turunkan klaim — jangan memberi advice, jangan memberi instruksi. Fokus pada kondisi manusia di balik pertanyaan ini terlebih dahulu, baru sentuh konteks domain lain secara ringan.`
-          : `Lebih dari satu konteks domain terdeteksi. Turunkan klaim dan gunakan bahasa reflektif. Jangan memberi penilaian final atau keputusan. Bantu user melihat dari berbagai sudut pandang.`;
-        systemContent += `\n\n---\nINSTRUKSI MULTI-NODE:\nNode aktif: ${nodesUsed.join(", ")}. ${multiNodeInstruction}`;
+        const instruction = hasBiasNode
+          ? `Prioritas BIAS → refleksi dulu, turunkan klaim, baru sentuh domain lain.`
+          : `Multi-node aktif. Turunkan klaim, bahasa reflektif, bantu lihat dari berbagai sudut.`;
+        systemContent += `\n\n---\nMULTI-NODE [${nodesUsed.join(", ")}]: ${instruction}`;
       }
 
       const toneSignals: string[] = [];
@@ -1164,20 +1168,14 @@ export async function registerRoutes(
       if (tone.evaluative) toneSignals.push("evaluatif/menilai orang/tim");
       if (tone.urgent) toneSignals.push("urgensi tinggi");
       if (toneSignals.length > 0) {
-        systemContent += `\n\n---\nTONE PERCAKAPAN TERDETEKSI: ${toneSignals.join(", ")}.\n`;
-        if (tone.emotional) {
-          systemContent += `Tone emosional terdeteksi — mulai dengan acknowledgment kondisi emosi sebelum masuk ke substansi. Tetap logis tapi dengan empati.\n`;
-        }
-        if (tone.urgent) {
-          systemContent += `Tone urgensi terdeteksi — bantu pikirkan: apakah urgensi ini nyata atau didorong oleh tekanan? Boleh rem sedikit kalau perlu: "Apakah memang harus sekarang?"\n`;
-        }
-        if (tone.evaluative) {
-          systemContent += `Tone evaluatif terdeteksi — bantu dengan framework berpikir, bukan penilaian langsung. Ingatkan juga sisi manusiawi dari orang yang sedang dievaluasi.\n`;
-        }
+        systemContent += `\n\n---\nTONE: ${toneSignals.join(", ")}.`;
+        if (tone.emotional) systemContent += ` Emosional → acknowledgment dulu.`;
+        if (tone.urgent) systemContent += ` Urgensi → cek apakah nyata.`;
+        if (tone.evaluative) systemContent += ` Evaluatif → framework, bukan penilaian langsung.`;
       }
 
       if (isStrategicEscalation) {
-        systemContent += `\n\n---\nSTRATEGIC ESCALATION AKTIF\nTopik ini terdeteksi sebagai keputusan besar/strategis. Tambahkan layer analisis berikut:\n1. RISIKO SISTEMIK: Apa dampak ke seluruh sistem (bisnis, keluarga, tim) jika ini salah?\n2. RISIKO REPUTASI: Bagaimana ini bisa mempengaruhi citra dan trust jangka panjang?\n3. RISIKO JANGKA PANJANG: Dalam 5-10 tahun, apakah keputusan ini masih terasa benar?\n\nIngatkan bahwa keputusan ini kemungkinan irreversible dan butuh due diligence sebelum eksekusi. Jangan terburu-buru memberi green light.`;
+        systemContent += `\n\n---\nESKALASI STRATEGIS: Tambah risiko sistemik + reputasi + jangka panjang (1-2 kalimat per risiko). Keputusan ini kemungkinan irreversible.`;
       }
 
       const rawFeedbacks = getPersonaFeedback(userId);
@@ -1190,7 +1188,7 @@ export async function registerRoutes(
             grouped[fb.target].push({ feedback: fb.feedback, sentiment: fb.sentiment });
           }
         }
-        let fbBlock = "\n\n---\nPASSIVE LISTENING: FEEDBACK DARI ORANG LAIN\nBerikut adalah pendapat/kesan orang lain yang pernah disampaikan secara natural dalam percakapan. Gunakan ini untuk memperkaya self-awareness setiap persona:\n\n";
+        let fbBlock = "\n\n---\nFEEDBACK PERSONA:\n";
         for (const [target, items] of Object.entries(grouped)) {
           const label = target === "dr" ? "DR" : target.charAt(0).toUpperCase() + target.slice(1);
           fbBlock += `[${label}]\n`;
@@ -1199,7 +1197,7 @@ export async function registerRoutes(
           }
           fbBlock += "\n";
         }
-        fbBlock += "Catatan: Integrasikan feedback ini secara natural. Jangan sebutkan bahwa kamu 'mendengar dari orang lain'. Gunakan untuk memperdalam karakter dan self-awareness tiap persona.";
+        fbBlock += "Integrasikan natural, jangan sebut sumber.";
         systemContent += fbBlock;
       }
 
@@ -1211,7 +1209,7 @@ export async function registerRoutes(
           if (!grouped[e.category]) grouped[e.category] = [];
           grouped[e.category].push(e.fact);
         }
-        let enrichBlock = "\n\n---\nPROFIL ENRICHMENT: FAKTA DARI PERCAKAPAN LANGSUNG DENGAN DR\nBerikut adalah fakta-fakta personal terpilih (high-signal) tentang mas DR. Gunakan untuk memperkaya persona DR:\n\n";
+        let enrichBlock = "\n\n---\nPROFIL DR:\n";
         for (const [cat, facts] of Object.entries(grouped)) {
           const label = ENRICHMENT_CATEGORY_LABELS[cat] || cat;
           enrichBlock += `[${label}]\n`;
@@ -1220,7 +1218,7 @@ export async function registerRoutes(
           }
           enrichBlock += "\n";
         }
-        enrichBlock += "Catatan: Fakta ini dari percakapan langsung dengan DR. Integrasikan secara natural. INGAT: preferensi adalah konteks, bukan kebenaran — tetap berani counter jika perlu.";
+        enrichBlock += "Konteks, bukan kebenaran — tetap counter jika perlu.";
         systemContent += enrichBlock;
       }
 
@@ -1232,7 +1230,7 @@ export async function registerRoutes(
           if (!grouped[pref.category]) grouped[pref.category] = [];
           grouped[pref.category].push(pref.insight);
         }
-        let prefBlock = "\n\n---\nAUTO-LEARN: PROFIL & PREFERENSI MAS DR (top 5 high-signal)\nBerikut adalah insight terpilih dari percakapan sebelumnya. Gunakan sebagai KONTEKS, bukan sebagai kebenaran absolut — DARVIS tetap wajib counter jika perlu:\n\n";
+        let prefBlock = "\n\n---\nPREFERENSI USER:\n";
         for (const [cat, insights] of Object.entries(grouped)) {
           prefBlock += `[${cat}]\n`;
           for (const ins of insights) {
@@ -1240,7 +1238,7 @@ export async function registerRoutes(
           }
           prefBlock += "\n";
         }
-        prefBlock += "Catatan: Ini adalah konteks untuk personalisasi, BUKAN panduan untuk selalu setuju. DARVIS tetap wajib memberi counter-angle saat diperlukan (lihat Anti Echo-Chamber Protocol).";
+        prefBlock += "Konteks personalisasi, tetap counter jika perlu.";
         systemContent += prefBlock;
       }
 
@@ -1305,6 +1303,9 @@ export async function registerRoutes(
           if (delta) {
             fullReply += delta;
             res.write(`data: ${JSON.stringify({ type: "chunk", content: delta })}\n\n`);
+            if (typeof (res as any).flush === "function") {
+              (res as any).flush();
+            }
           }
         }
         clearTimeout(timeout);
