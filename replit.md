@@ -17,7 +17,8 @@ DARVIS employs a modern web architecture with a React-based frontend, an Express
     - Owner login (lock icon) and logout functionality for Mirror Mode.
     - Adaptive empty state based on presentation mode.
     - PWA support for installability on mobile devices, including manifest.json and service worker for offline capabilities.
-    - Download Conversation feature (MD + PDF).
+    - Download Conversation feature (MD + PDF) with professional report header/footer.
+    - Markdown rendering in chat (react-markdown) — bold, italic, heading, list, blockquote, code, emoji.
     - Voice Input for speech-to-text.
     - Image Upload & Analysis for multi-image processing.
 

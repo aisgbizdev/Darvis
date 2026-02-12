@@ -6,7 +6,39 @@ import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Send, Trash2, Loader2, Lightbulb, X, Shield, Heart, Sparkles, User, Fingerprint, Mic, MicOff, ImagePlus, Lock, LogOut, Download } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import type { ChatMessage, ChatResponse, HistoryResponse, PreferencesResponse, PersonaFeedbackResponse, ProfileEnrichmentsResponse } from "@shared/schema";
+
+function MarkdownContent({ content, className = "" }: { content: string; className?: string }) {
+  return (
+    <div className={`markdown-content text-[13px] sm:text-sm leading-relaxed ${className}`}>
+      <ReactMarkdown
+        components={{
+          p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+          strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+          em: ({ children }) => <em className="italic">{children}</em>,
+          h1: ({ children }) => <h1 className="text-base font-bold mb-2 mt-3 first:mt-0">{children}</h1>,
+          h2: ({ children }) => <h2 className="text-[15px] font-bold mb-1.5 mt-2.5 first:mt-0">{children}</h2>,
+          h3: ({ children }) => <h3 className="text-[14px] font-semibold mb-1 mt-2 first:mt-0">{children}</h3>,
+          ul: ({ children }) => <ul className="list-disc pl-5 mb-2 space-y-0.5">{children}</ul>,
+          ol: ({ children }) => <ol className="list-decimal pl-5 mb-2 space-y-0.5">{children}</ol>,
+          li: ({ children }) => <li className="mb-0.5">{children}</li>,
+          blockquote: ({ children }) => <blockquote className="border-l-2 border-muted-foreground/30 pl-3 my-2 italic text-muted-foreground">{children}</blockquote>,
+          code: ({ children, className: codeClassName }) => {
+            const isBlock = codeClassName?.includes("language-");
+            if (isBlock) {
+              return <pre className="bg-muted/50 rounded-md p-2.5 my-2 overflow-x-auto text-xs"><code>{children}</code></pre>;
+            }
+            return <code className="bg-muted/50 rounded px-1.5 py-0.5 text-xs font-mono">{children}</code>;
+          },
+          hr: () => <hr className="my-3 border-muted-foreground/20" />,
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
+}
 
 interface ParsedVoices {
   broto: string | null;
@@ -84,7 +116,9 @@ function PersonaCard({ persona, content, index }: { persona: keyof typeof PERSON
             <span className="text-[9px] text-muted-foreground hidden sm:inline">{config.subtitle}</span>
           </div>
         </div>
-        <p className="text-[13px] sm:text-sm leading-relaxed whitespace-pre-wrap" data-testid={`text-${persona}-${index}`}>{content}</p>
+        <div data-testid={`text-${persona}-${index}`}>
+          <MarkdownContent content={content} />
+        </div>
       </Card>
     </div>
   );
@@ -106,7 +140,9 @@ function AssistantBubble({ content, index, isOwner }: { content: string; index: 
 
   return (
     <Card className="p-2.5 sm:p-3 max-w-full sm:max-w-[85%] md:max-w-[75%] bg-card border-card-border" data-testid={`bubble-assistant-${index}`}>
-      <p className="text-[13px] sm:text-sm leading-relaxed whitespace-pre-wrap" data-testid={`text-assistant-${index}`}>{content}</p>
+      <div data-testid={`text-assistant-${index}`}>
+        <MarkdownContent content={content} />
+      </div>
     </Card>
   );
 }
@@ -523,6 +559,48 @@ export default function ChatPage() {
     return md;
   }, []);
 
+  const markdownToHtml = useCallback((text: string): string => {
+    let html = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+    const lines = html.split('\n');
+    let result = '';
+    let inUl = false;
+    let inOl = false;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const ulMatch = line.match(/^[-*] (.+)$/);
+      const olMatch = line.match(/^\d+\. (.+)$/);
+      if (ulMatch) {
+        if (!inUl) { result += '<ul>'; inUl = true; }
+        if (inOl) { result += '</ol>'; inOl = false; }
+        result += `<li>${ulMatch[1]}</li>`;
+      } else if (olMatch) {
+        if (!inOl) { result += '<ol>'; inOl = true; }
+        if (inUl) { result += '</ul>'; inUl = false; }
+        result += `<li>${olMatch[1]}</li>`;
+      } else {
+        if (inUl) { result += '</ul>'; inUl = false; }
+        if (inOl) { result += '</ol>'; inOl = false; }
+        if (line.trim() === '') {
+          result += '<br/>';
+        } else if (!line.startsWith('<h') && !line.startsWith('<blockquote')) {
+          result += `<p>${line}</p>`;
+        } else {
+          result += line;
+        }
+      }
+    }
+    if (inUl) result += '</ul>';
+    if (inOl) result += '</ol>';
+    return result;
+  }, []);
+
   const formatMessagesAsPDFHTML = useCallback((msgs: ChatMessage[]): string => {
     const now = new Date();
     const dateStr = now.toLocaleDateString("id-ID", { year: "numeric", month: "long", day: "numeric" });
@@ -543,7 +621,18 @@ export default function ChatPage() {
       .role { font-weight: 700; font-size: 10px; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.8px; }
       .role-user { color: #4a6fa5; }
       .role-assistant { color: #2d8a56; }
-      .content { white-space: pre-wrap; }
+      .content h1 { font-size: 16px; font-weight: 700; margin: 12px 0 6px 0; }
+      .content h2 { font-size: 15px; font-weight: 700; margin: 10px 0 5px 0; }
+      .content h3 { font-size: 14px; font-weight: 600; margin: 8px 0 4px 0; }
+      .content p { margin: 0 0 6px 0; }
+      .content p:last-child { margin-bottom: 0; }
+      .content strong { font-weight: 700; }
+      .content em { font-style: italic; }
+      .content code { background: #e8e8e8; border-radius: 3px; padding: 1px 5px; font-family: 'Consolas', 'Monaco', monospace; font-size: 12px; }
+      .content ul, .content ol { margin: 6px 0; padding-left: 20px; }
+      .content li { margin-bottom: 3px; }
+      .content blockquote { border-left: 3px solid #ccc; padding-left: 12px; margin: 8px 0; color: #555; font-style: italic; }
+      .content br { display: block; margin: 4px 0; content: ''; }
       .report-footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid #e5e5e5; text-align: center; font-size: 10px; color: #aaa; }
       @media print { body { padding: 0; } .report-header { padding-top: 0; } }
     </style></head><body>
@@ -562,13 +651,13 @@ export default function ChatPage() {
       const roleLabel = msg.role === "user" ? "Kamu" : "DARVIS";
       const cls = msg.role === "user" ? "user" : "assistant";
       const roleCls = msg.role === "user" ? "role-user" : "role-assistant";
-      const escaped = msg.content.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-      html += `<div class="msg ${cls}"><div class="role ${roleCls}">${roleLabel}</div><div class="content">${escaped}</div></div>`;
+      const rendered = markdownToHtml(msg.content);
+      html += `<div class="msg ${cls}"><div class="role ${roleCls}">${roleLabel}</div><div class="content">${rendered}</div></div>`;
     });
     html += `<div class="report-footer">DARVIS &mdash; Thinking Framework Distributor &mdash; &copy; ${now.getFullYear()}</div>`;
     html += `</body></html>`;
     return html;
-  }, []);
+  }, [markdownToHtml]);
 
   const downloadFile = useCallback((content: string, filename: string, mimeType: string) => {
     const blob = new Blob([content], { type: mimeType });
