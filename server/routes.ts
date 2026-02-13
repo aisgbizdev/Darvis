@@ -683,8 +683,30 @@ function detectDRIdentity(message: string): boolean {
   return patterns.some((p) => p.test(lower));
 }
 
-async function extractProfileEnrichment(userId: string, userMessage: string) {
-  const prompt = `Kamu adalah sistem ekstraksi profil untuk DARVIS. Analisis pesan berikut dan ekstrak fakta-fakta personal tentang DR (Dian Ramadhan) yang disampaikan.
+async function extractProfileEnrichment(userId: string, userMessage: string, isContributorMode = false) {
+  const contributorPrompt = `Kamu adalah sistem ekstraksi profil untuk DARVIS. Pesan ini datang dari KONTRIBUTOR — seseorang yang mengenal DR (Dian Ramadhan) secara pribadi. Karena kontributor pasti kenal DR, semua yang mereka sampaikan memiliki akurasi tinggi.
+
+Pesan kontributor: "${userMessage}"
+
+TUGAS: Ekstrak SEMUA informasi yang bisa memperkaya pemahaman tentang DR. Tangkap semuanya — cerita, opini, kesan, pengalaman bersama, sifat yang diamati, kebiasaan, cara bicara, reaksi, preferensi, apapun yang disampaikan tentang DR.
+
+Ekstrak dalam format JSON array. Setiap item:
+- category: salah satu dari "persepsi_orang" (bagaimana kontributor melihat/menilai DR), "cerita_bersama" (pengalaman/momen bersama DR), "tokoh_idola" (tokoh yang dikagumi/disebut DR), "film_favorit" (film/media yang disukai), "prinsip_spiritual" (nilai religius/spiritual), "karakter_personal" (sifat/karakter yang diamati), "kebiasaan" (habit/kebiasaan yang diamati), "filosofi" (cara pandang/filosofi hidup DR), "preferensi" (hal yang disukai/tidak disukai), "cara_bicara" (gaya komunikasi/ungkapan khas), "relasi" (hubungan DR dengan orang lain)
+- fact: deskripsi dalam 1-2 kalimat bahasa Indonesia, ditulis sebagai observasi tentang DR dari sudut pandang orang ketiga
+- confidence: 0.5-1.0 (set tinggi karena dari orang yang kenal langsung)
+- source_quote: kutipan singkat dari pesan asli
+
+RULES:
+- Tangkap SEMUA informasi relevan, jangan skip apapun
+- Bahkan opini subjektif kontributor tentang DR tetap berharga — tangkap sebagai "persepsi_orang"
+- Cerita/pengalaman bersama sangat berharga — tangkap sebagai "cerita_bersama"
+- Tulis fact sebagai pernyataan tentang DR, contoh: "Menurut orang yang kenal DR, dia punya karisma natural yang kuat"
+- Pisahkan fakta berbeda jadi item terpisah
+- Hanya kembalikan [] jika pesan benar-benar tidak ada hubungannya dengan DR sama sekali (misal: "halo" saja)
+
+Respond ONLY with valid JSON array.`;
+
+  const ownerPrompt = `Kamu adalah sistem ekstraksi profil untuk DARVIS. Analisis pesan berikut dan ekstrak fakta-fakta personal tentang DR (Dian Ramadhan) yang disampaikan.
 
 Pesan: "${userMessage}"
 
@@ -703,6 +725,8 @@ RULES:
 
 Respond ONLY with valid JSON array.`;
 
+  const prompt = isContributorMode ? contributorPrompt : ownerPrompt;
+
   try {
     const completion = await openai.chat.completions.create({
       model: "gpt-5",
@@ -719,14 +743,17 @@ Respond ONLY with valid JSON array.`;
     const parsed = JSON.parse(jsonMatch[0]);
     if (!Array.isArray(parsed) || parsed.length === 0) return;
 
-    const validCategories = ["persepsi_orang", "tokoh_idola", "film_favorit", "prinsip_spiritual", "karakter_personal", "kebiasaan", "filosofi", "preferensi"];
+    const validCategories = isContributorMode
+      ? ["persepsi_orang", "cerita_bersama", "tokoh_idola", "film_favorit", "prinsip_spiritual", "karakter_personal", "kebiasaan", "filosofi", "preferensi", "cara_bicara", "relasi"]
+      : ["persepsi_orang", "tokoh_idola", "film_favorit", "prinsip_spiritual", "karakter_personal", "kebiasaan", "filosofi", "preferensi"];
+    const minConfidence = isContributorMode ? 0.5 : 0.6;
     const validItems = parsed
       .filter((p: any) =>
         p.category && validCategories.includes(p.category) &&
         p.fact && typeof p.fact === "string" &&
-        typeof p.confidence === "number" && p.confidence >= 0.6 && p.confidence <= 1.0
+        typeof p.confidence === "number" && p.confidence >= minConfidence && p.confidence <= 1.0
       )
-      .slice(0, 10)
+      .slice(0, isContributorMode ? 15 : 10)
       .map((p: any) => ({
         category: p.category as string,
         fact: p.fact as string,
@@ -1441,11 +1468,11 @@ export async function registerRoutes(
         }
 
         if (isContributor) {
-          extractProfileEnrichment("contributor_shared", message).catch((err) => {
+          extractProfileEnrichment("contributor_shared", message, true).catch((err) => {
             console.error("Contributor enrichment error:", err?.message || err);
           });
         } else if (detectDRIdentity(message)) {
-          extractProfileEnrichment(userId, message).catch((err) => {
+          extractProfileEnrichment(userId, message, false).catch((err) => {
             console.error("Profile enrichment error:", err?.message || err);
           });
         }

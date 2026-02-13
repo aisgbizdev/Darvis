@@ -202,6 +202,7 @@ function ContextModeBadge({ mode }: { mode: string }) {
 
 const ENRICHMENT_LABELS: Record<string, string> = {
   persepsi_orang: "Persepsi Orang Lain",
+  cerita_bersama: "Cerita & Pengalaman Bersama",
   tokoh_idola: "Tokoh Idola & Inspirasi",
   film_favorit: "Film Favorit",
   prinsip_spiritual: "Spiritual & Religius",
@@ -209,6 +210,8 @@ const ENRICHMENT_LABELS: Record<string, string> = {
   kebiasaan: "Kebiasaan",
   filosofi: "Filosofi Hidup",
   preferensi: "Preferensi & Selera",
+  cara_bicara: "Gaya Komunikasi",
+  relasi: "Relasi & Hubungan",
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
