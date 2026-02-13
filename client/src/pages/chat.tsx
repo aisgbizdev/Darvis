@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Send, Trash2, Loader2, Lightbulb, X, Shield, Heart, Sparkles, User, Fingerprint, Mic, MicOff, ImagePlus, Lock, LogOut, Download, KeyRound, Users, Settings, Check, LayoutDashboard } from "lucide-react";
+import { Send, Trash2, Loader2, Lightbulb, X, Shield, Heart, Sparkles, User, Fingerprint, Mic, MicOff, ImagePlus, Lock, LogOut, Download, KeyRound, Users, Settings, Check, LayoutDashboard, Phone, PhoneOff, Volume2 } from "lucide-react";
 import { NotificationCenter } from "@/components/notification-center";
 import { SecretaryDashboard } from "@/components/secretary-dashboard";
 import ReactMarkdown from "react-markdown";
@@ -77,12 +77,24 @@ const PERSONA_CONFIG = {
   },
 } as const;
 
-function AssistantBubble({ content, index, isOwner }: { content: string; index: number; isOwner: boolean }) {
+function AssistantBubble({ content, index, isOwner, onPlay, isTtsPlaying }: { content: string; index: number; isOwner: boolean; onPlay?: (text: string) => void; isTtsPlaying?: boolean }) {
   return (
-    <Card className="p-2.5 sm:p-3 max-w-full sm:max-w-[85%] md:max-w-[75%] bg-card border-card-border" data-testid={`bubble-assistant-${index}`}>
+    <Card className="p-2.5 sm:p-3 max-w-full sm:max-w-[85%] md:max-w-[75%] bg-card border-card-border group" data-testid={`bubble-assistant-${index}`}>
       <div data-testid={`text-assistant-${index}`}>
         <MarkdownContent content={content} />
       </div>
+      {onPlay && (
+        <div className="flex justify-end mt-1">
+          <button
+            onClick={() => onPlay(content)}
+            className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity p-0.5"
+            data-testid={`button-play-tts-${index}`}
+            title="Dengarkan"
+          >
+            <Volume2 className={`w-3 h-3 ${isTtsPlaying ? "animate-pulse text-primary" : ""}`} />
+          </button>
+        </div>
+      )}
     </Card>
   );
 }
@@ -192,6 +204,10 @@ export default function ChatPage() {
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const [conversationMode, setConversationMode] = useState(false);
+  const [ttsVoice, setTtsVoice] = useState<string>("onyx");
+  const [ttsPlaying, setTtsPlaying] = useState(false);
+  const [showVoiceSelector, setShowVoiceSelector] = useState(false);
   const [showPasswordPanel, setShowPasswordPanel] = useState(false);
   const [pwType, setPwType] = useState<"owner" | "contributor">("owner");
   const [pwCurrent, setPwCurrent] = useState("");
@@ -204,6 +220,13 @@ export default function ChatPage() {
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const downloadMenuRef = useRef<HTMLDivElement>(null);
+  const voiceSelectorRef = useRef<HTMLDivElement>(null);
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const vadActiveRef = useRef(false);
+  const pendingTtsRef = useRef<string | null>(null);
+  const conversationModeRef = useRef(false);
+  const vadSendRef = useRef<((text: string) => void) | null>(null);
 
   useEffect(() => {
     if (!showDownloadMenu) return;
@@ -215,6 +238,17 @@ export default function ChatPage() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showDownloadMenu]);
+
+  useEffect(() => {
+    if (!showVoiceSelector) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (voiceSelectorRef.current && !voiceSelectorRef.current.contains(e.target as Node)) {
+        setShowVoiceSelector(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showVoiceSelector]);
 
   const { data: sessionData } = useQuery<{ isOwner: boolean; isContributor: boolean; mode: string }>({
     queryKey: ["/api/session-info"],
@@ -263,6 +297,82 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
+    conversationModeRef.current = conversationMode;
+  }, [conversationMode]);
+
+  const playTts = useCallback(async (text: string) => {
+    try {
+      if (ttsAudioRef.current) {
+        ttsAudioRef.current.pause();
+        ttsAudioRef.current = null;
+      }
+      setTtsPlaying(true);
+
+      const cleanText = text
+        .replace(/#{1,6}\s/g, "")
+        .replace(/\*\*([^*]+)\*\*/g, "$1")
+        .replace(/\*([^*]+)\*/g, "$1")
+        .replace(/`([^`]+)`/g, "$1")
+        .replace(/```[\s\S]*?```/g, "")
+        .replace(/>\s/g, "")
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+        .replace(/[-*+]\s/g, "")
+        .replace(/\d+\.\s/g, "")
+        .trim();
+
+      if (!cleanText) { setTtsPlaying(false); return; }
+
+      const res = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: cleanText, voice: ttsVoice }),
+        credentials: "include",
+      });
+
+      if (!res.ok) { setTtsPlaying(false); return; }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      ttsAudioRef.current = audio;
+
+      audio.onended = () => {
+        setTtsPlaying(false);
+        URL.revokeObjectURL(url);
+        ttsAudioRef.current = null;
+        if (conversationModeRef.current && recognitionRef.current) {
+          try {
+            setInput("");
+            recognitionRef.current.start();
+            setIsListening(true);
+          } catch {}
+        }
+      };
+
+      audio.onerror = () => {
+        setTtsPlaying(false);
+        URL.revokeObjectURL(url);
+        ttsAudioRef.current = null;
+      };
+
+      await audio.play();
+    } catch {
+      setTtsPlaying(false);
+    }
+  }, [ttsVoice]);
+
+  const stopTts = useCallback(() => {
+    if (ttsAudioRef.current) {
+      const src = ttsAudioRef.current.src;
+      ttsAudioRef.current.pause();
+      ttsAudioRef.current.currentTime = 0;
+      ttsAudioRef.current = null;
+      if (src.startsWith("blob:")) URL.revokeObjectURL(src);
+    }
+    setTtsPlaying(false);
+  }, []);
+
+  useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
       setVoiceSupported(true);
@@ -282,11 +392,32 @@ export default function ChatPage() {
             interimTranscript += transcript;
           }
         }
-        setInput((finalTranscript + interimTranscript).trim());
+        const currentText = (finalTranscript + interimTranscript).trim();
+        setInput(currentText);
+
+        if (conversationModeRef.current && currentText) {
+          if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+          vadActiveRef.current = true;
+          silenceTimerRef.current = setTimeout(() => {
+            if (vadActiveRef.current && currentText) {
+              vadActiveRef.current = false;
+              recognition.stop();
+              setIsListening(false);
+              if (vadSendRef.current) {
+                vadSendRef.current(currentText);
+              }
+            }
+          }, 2500);
+        }
       };
 
       recognition.onend = () => {
         setIsListening(false);
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = null;
+        }
+        vadActiveRef.current = false;
       };
 
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -302,6 +433,13 @@ export default function ChatPage() {
       if (recognitionRef.current) {
         try { recognitionRef.current.stop(); } catch {}
       }
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+      }
+      if (ttsAudioRef.current) {
+        ttsAudioRef.current.pause();
+        ttsAudioRef.current = null;
+      }
     };
   }, []);
 
@@ -310,12 +448,41 @@ export default function ChatPage() {
     if (isListening) {
       recognitionRef.current.stop();
       setIsListening(false);
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+      vadActiveRef.current = false;
     } else {
       setInput("");
       recognitionRef.current.start();
       setIsListening(true);
     }
   }, [isListening]);
+
+  const toggleConversationMode = useCallback(() => {
+    if (conversationMode) {
+      setConversationMode(false);
+      if (isListening && recognitionRef.current) {
+        recognitionRef.current.stop();
+        setIsListening(false);
+      }
+      stopTts();
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+    } else {
+      setConversationMode(true);
+      if (recognitionRef.current && !isListening) {
+        setInput("");
+        try {
+          recognitionRef.current.start();
+          setIsListening(true);
+        } catch {}
+      }
+    }
+  }, [conversationMode, isListening, stopTts]);
 
   const handleLogin = useCallback(async () => {
     setLoginError("");
@@ -478,6 +645,9 @@ export default function ChatPage() {
             setStreamingContent("");
             if (parsed.contextMode) setCurrentContextMode(parsed.contextMode);
             else setCurrentContextMode(null);
+            if (conversationModeRef.current && finalContent) {
+              pendingTtsRef.current = finalContent;
+            }
           } else if (parsed.type === "error") {
             cleanup();
             const canRetry = parsed.retryable !== false;
@@ -523,10 +693,27 @@ export default function ChatPage() {
       setStreamingContent("");
     } finally {
       setIsStreaming(false);
-      inputRef.current?.focus();
+      if (!conversationModeRef.current) {
+        inputRef.current?.focus();
+      }
       setTimeout(scrollToBottom, 50);
+      if (pendingTtsRef.current) {
+        const ttsText = pendingTtsRef.current;
+        pendingTtsRef.current = null;
+        playTts(ttsText);
+      }
     }
-  }, [scrollToBottom]);
+  }, [scrollToBottom, playTts]);
+
+  useEffect(() => {
+    vadSendRef.current = (text: string) => {
+      if (!text.trim() || isStreaming) return;
+      const userMsg: ChatMessage = { role: "user", content: text };
+      setMessages((prev) => [...prev, userMsg]);
+      setInput("");
+      sendMessage({ message: text });
+    };
+  }, [sendMessage, isStreaming]);
 
   useEffect(() => {
     if (isStreaming) {
@@ -1194,7 +1381,7 @@ export default function ChatPage() {
             msg.role === "user" ? (
               <UserBubble key={i} content={msg.content} index={i} images={msg.images} />
             ) : (
-              <AssistantBubble key={i} content={msg.content} index={i} isOwner={isOwner} />
+              <AssistantBubble key={i} content={msg.content} index={i} isOwner={isOwner} onPlay={playTts} isTtsPlaying={ttsPlaying} />
             ),
           )}
 
@@ -1211,7 +1398,57 @@ export default function ChatPage() {
       </div>
 
       <div className={`border-t px-3 sm:px-4 py-2 sm:py-3 bg-background shrink-0 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] ${showDashboard ? "hidden" : ""}`} data-testid="container-input">
-        {isListening && (
+        {conversationMode && (
+          <div className="max-w-2xl mx-auto mb-2 flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary/10 dark:bg-primary/20" data-testid="status-conversation-mode">
+            <Phone className="w-3.5 h-3.5 text-primary shrink-0" />
+            <span className="text-xs text-primary flex-1">
+              {ttsPlaying ? "DARVIS sedang bicara..." : isStreaming ? "DARVIS sedang mikir..." : isListening ? "Mendengarkan... diam 2.5 detik untuk kirim otomatis" : "Mode Percakapan aktif"}
+            </span>
+            {ttsPlaying && (
+              <Button size="icon" variant="ghost" onClick={stopTts} className="h-6 w-6" data-testid="button-stop-tts">
+                <Volume2 className="w-3.5 h-3.5 animate-pulse" />
+              </Button>
+            )}
+            <div className="relative" ref={voiceSelectorRef}>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => setShowVoiceSelector(!showVoiceSelector)}
+                className="h-6 w-6"
+                data-testid="button-voice-selector"
+                title="Pilih suara"
+              >
+                <Settings className="w-3 h-3" />
+              </Button>
+              {showVoiceSelector && (
+                <div className="absolute bottom-full right-0 mb-1 w-40 bg-popover border rounded-md shadow-md p-1 z-50" data-testid="container-voice-selector">
+                  {[
+                    { id: "onyx", label: "Onyx", desc: "Berat, maskulin" },
+                    { id: "echo", label: "Echo", desc: "Lembut, maskulin" },
+                    { id: "ash", label: "Ash", desc: "Hangat, maskulin" },
+                    { id: "nova", label: "Nova", desc: "Cerah, feminin" },
+                    { id: "shimmer", label: "Shimmer", desc: "Halus, feminin" },
+                    { id: "coral", label: "Coral", desc: "Santai, feminin" },
+                    { id: "alloy", label: "Alloy", desc: "Netral" },
+                    { id: "fable", label: "Fable", desc: "Ekspresif" },
+                    { id: "sage", label: "Sage", desc: "Bijak, tenang" },
+                  ].map((v) => (
+                    <button
+                      key={v.id}
+                      onClick={() => { setTtsVoice(v.id); setShowVoiceSelector(false); }}
+                      className={`w-full text-left px-2 py-1 rounded-sm text-xs flex items-center justify-between gap-1 hover-elevate ${ttsVoice === v.id ? "bg-primary/10 text-primary" : ""}`}
+                      data-testid={`button-voice-option-${v.id}`}
+                    >
+                      <span className="font-medium">{v.label}</span>
+                      <span className="text-muted-foreground text-[10px]">{v.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        {!conversationMode && isListening && (
           <div className="max-w-2xl mx-auto mb-2 flex items-center gap-2 px-3 py-1.5 rounded-md bg-red-500/10 dark:bg-red-400/10" data-testid="status-voice-listening">
             <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
             <span className="text-xs text-red-600 dark:text-red-400">Mendengarkan... tekan mic lagi untuk berhenti</span>
@@ -1251,57 +1488,98 @@ export default function ChatPage() {
           onChange={handleFileSelect}
           data-testid="input-file-upload"
         />
-        <div className="max-w-2xl mx-auto flex items-end gap-2">
-          <Button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isStreaming || attachedImages.length >= 5}
-            size="icon"
-            variant="outline"
-            data-testid="button-upload-image"
-          >
-            <ImagePlus className="w-4 h-4" />
-          </Button>
-          <Textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder={isListening ? "Ngomong aja..." : attachedImages.length > 0 ? "Ceritain soal gambarnya..." : "Mau ngobrolin apa nih..."}
-            rows={1}
-            className="flex-1 resize-none min-h-[42px] max-h-[120px] text-sm"
-            onInput={(e) => {
-              const target = e.target as HTMLTextAreaElement;
-              target.style.height = "auto";
-              target.style.height = Math.min(target.scrollHeight, 120) + "px";
-            }}
-            disabled={isStreaming}
-            data-testid="input-message"
-          />
-          {voiceSupported && (
-            <Button
-              onClick={toggleVoice}
-              disabled={isStreaming}
-              size="icon"
-              variant={isListening ? "destructive" : "outline"}
-              data-testid="button-voice"
-            >
-              {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-            </Button>
-          )}
-          <Button
-            onClick={handleSend}
-            disabled={(!input.trim() && attachedImages.length === 0) || isStreaming}
-            size="icon"
-            data-testid="button-send"
-          >
-            {isStreaming ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Send className="w-4 h-4" />
+        {conversationMode ? (
+          <div className="max-w-2xl mx-auto flex flex-col items-center gap-3 py-2">
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={toggleConversationMode}
+                size="icon"
+                variant="destructive"
+                data-testid="button-end-conversation"
+                title="Akhiri percakapan"
+              >
+                <PhoneOff className="w-4 h-4" />
+              </Button>
+              {isListening && (
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" style={{ animationDelay: "0.2s" }} />
+                  <div className="w-1 h-1 rounded-full bg-red-300 animate-pulse" style={{ animationDelay: "0.4s" }} />
+                </div>
+              )}
+            </div>
+            {input && (
+              <p className="text-xs text-muted-foreground italic max-w-xs text-center truncate" data-testid="text-voice-preview">
+                "{input}"
+              </p>
             )}
-          </Button>
-        </div>
+          </div>
+        ) : (
+          <div className="max-w-2xl mx-auto flex items-end gap-2">
+            <Button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isStreaming || attachedImages.length >= 5}
+              size="icon"
+              variant="outline"
+              data-testid="button-upload-image"
+            >
+              <ImagePlus className="w-4 h-4" />
+            </Button>
+            <Textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              placeholder={isListening ? "Ngomong aja..." : attachedImages.length > 0 ? "Ceritain soal gambarnya..." : "Mau ngobrolin apa nih..."}
+              rows={1}
+              className="flex-1 resize-none min-h-[42px] max-h-[120px] text-sm"
+              onInput={(e) => {
+                const target = e.target as HTMLTextAreaElement;
+                target.style.height = "auto";
+                target.style.height = Math.min(target.scrollHeight, 120) + "px";
+              }}
+              disabled={isStreaming}
+              data-testid="input-message"
+            />
+            {voiceSupported && (
+              <>
+                <Button
+                  onClick={toggleVoice}
+                  disabled={isStreaming}
+                  size="icon"
+                  variant={isListening ? "destructive" : "outline"}
+                  data-testid="button-voice"
+                >
+                  {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                </Button>
+                <Button
+                  onClick={toggleConversationMode}
+                  disabled={isStreaming}
+                  size="icon"
+                  variant="outline"
+                  className="toggle-elevate"
+                  data-testid="button-conversation-mode"
+                  title="Mode Percakapan"
+                >
+                  <Phone className="w-4 h-4" />
+                </Button>
+              </>
+            )}
+            <Button
+              onClick={handleSend}
+              disabled={(!input.trim() && attachedImages.length === 0) || isStreaming}
+              size="icon"
+              data-testid="button-send"
+            >
+              {isStreaming ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -21,6 +21,8 @@ DARVIS employs a modern web architecture with a React-based frontend, an Express
     - Markdown rendering in chat (react-markdown) — bold, italic, heading, list, blockquote, code, emoji.
     - Optimized system prompt (65-70% token reduction) + prompt file caching + SSE flush for faster streaming.
     - Voice Input for speech-to-text.
+    - Voice Conversation Mode (hands-free): VAD with 2.5s silence auto-send, TTS auto-play after response, voice selector (9 OpenAI voices), conversation loop (speak → listen → respond → speak).
+    - Per-message TTS playback: hover speaker icon on any assistant message to hear it read aloud.
     - Image Upload & Analysis for multi-image processing.
 
 - **Technical Implementations**:

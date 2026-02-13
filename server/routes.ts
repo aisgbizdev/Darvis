@@ -1466,6 +1466,39 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== TEXT-TO-SPEECH API ====================
+  app.post("/api/tts", async (req, res) => {
+    try {
+      const { text, voice } = req.body;
+      if (!text || typeof text !== "string") {
+        return res.status(400).json({ message: "Text is required" });
+      }
+
+      const validVoices = ["alloy", "echo", "fable", "onyx", "nova", "shimmer", "ash", "coral", "sage"] as const;
+      const selectedVoice = validVoices.includes(voice) ? voice : "onyx";
+
+      const ttsText = text.length > 4096 ? text.slice(0, 4096) : text;
+
+      const mp3 = await openai.audio.speech.create({
+        model: "tts-1",
+        voice: selectedVoice,
+        input: ttsText,
+        speed: 1.0,
+      });
+
+      const buffer = Buffer.from(await mp3.arrayBuffer());
+      res.set({
+        "Content-Type": "audio/mpeg",
+        "Content-Length": buffer.length.toString(),
+        "Cache-Control": "no-cache",
+      });
+      return res.send(buffer);
+    } catch (err: any) {
+      console.error("TTS error:", err?.message);
+      return res.status(500).json({ message: "TTS generation failed" });
+    }
+  });
+
   // ==================== DASHBOARD SUMMARY API ====================
   app.get("/api/dashboard", (req, res) => {
     try {
