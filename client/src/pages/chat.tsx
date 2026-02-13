@@ -1150,7 +1150,7 @@ export default function ChatPage() {
               <h2 className="text-base font-semibold mb-1" data-testid="text-greeting">DARVIS</h2>
               <p className="text-[13px] sm:text-sm text-muted-foreground max-w-[280px] sm:max-w-xs" data-testid="text-tagline">
                 {isOwner
-                  ? "Mirror Mode aktif. Ceritakan apa yang lagi lo pikirin, kita bedah bareng."
+                  ? "Yo, mau ngobrolin apa nih? Gw siap sparring."
                   : isContributor
                   ? "Contributor Mode. Ceritakan pengalaman lo bareng DR — insight lo berharga buat DARVIS."
                   : "Tony Stark punya JARVIS, lu punya DARVIS. Partner diskusi lu."}
