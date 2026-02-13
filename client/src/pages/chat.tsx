@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Send, Trash2, Loader2, Lightbulb, X, Shield, Heart, Sparkles, User, Fingerprint, Mic, MicOff, ImagePlus, Lock, LogOut, Download, KeyRound, Users, Settings, Check } from "lucide-react";
+import { Send, Trash2, Loader2, Lightbulb, X, Shield, Heart, Sparkles, User, Fingerprint, Mic, MicOff, ImagePlus, Lock, LogOut, Download, KeyRound, Users, Settings, Check, LayoutDashboard } from "lucide-react";
+import { NotificationCenter } from "@/components/notification-center";
+import { SecretaryDashboard } from "@/components/secretary-dashboard";
 import ReactMarkdown from "react-markdown";
 import type { ChatMessage, ChatResponse, HistoryResponse, PreferencesResponse, PersonaFeedbackResponse, ProfileEnrichmentsResponse } from "@shared/schema";
 
@@ -242,6 +244,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [showPrefs, setShowPrefs] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
   const [attachedImages, setAttachedImages] = useState<string[]>([]);
@@ -893,6 +896,17 @@ export default function ChatPage() {
               >
                 <Settings className="w-4 h-4" />
               </Button>
+              <NotificationCenter />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowDashboard(!showDashboard)}
+                className={`toggle-elevate ${showDashboard ? "toggle-elevated" : ""}`}
+                data-testid="button-show-dashboard"
+                title="Dashboard Secretary"
+              >
+                <LayoutDashboard className="w-4 h-4" />
+              </Button>
             </>
           )}
           <div className="relative" ref={downloadMenuRef}>
@@ -1180,7 +1194,11 @@ export default function ChatPage() {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-3 sm:px-4" ref={scrollRef} data-testid="container-messages">
+      {showDashboard && isOwner && (
+        <SecretaryDashboard onClose={() => setShowDashboard(false)} />
+      )}
+
+      <div className={`flex-1 overflow-y-auto px-3 sm:px-4 ${showDashboard ? "hidden" : ""}`} ref={scrollRef} data-testid="container-messages">
         <div className="py-3 sm:py-4 space-y-3 max-w-2xl mx-auto">
           {historyLoading && (
             <div className="flex items-center justify-center py-16" data-testid="status-loading-history">
@@ -1254,7 +1272,7 @@ export default function ChatPage() {
         </div>
       </div>
 
-      <div className="border-t px-3 sm:px-4 py-2 sm:py-3 bg-background shrink-0 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))]" data-testid="container-input">
+      <div className={`border-t px-3 sm:px-4 py-2 sm:py-3 bg-background shrink-0 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] ${showDashboard ? "hidden" : ""}`} data-testid="container-input">
         {isListening && (
           <div className="max-w-2xl mx-auto mb-2 flex items-center gap-2 px-3 py-1.5 rounded-md bg-red-500/10 dark:bg-red-400/10" data-testid="status-voice-listening">
             <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />

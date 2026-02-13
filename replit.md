@@ -50,6 +50,15 @@ DARVIS employs a modern web architecture with a React-based frontend, an Express
     - **Memory Governor**: Limits injected preferences, uses a scoring system, and guards context budget.
     - **Decision Fast Mode**: Provides concise 3-bullet summaries with risks, blind spots, and actions when triggered.
     - **Streaming SSE responses**: Real-time word-by-word response delivery.
+    - **Secretary System (v2.0)**: Strategic secretary layer in Mirror Mode — manages team members, meetings, action items, and projects.
+        - Database tables: `team_members`, `meetings`, `action_items`, `projects`, `notifications`.
+        - Auto-extraction from conversation: GPT-powered extraction of team profiles, meetings, action items, projects from natural chat in Mirror Mode.
+        - Dynamic context injection: `NODE_TEAM`, `NODE_MEETING`, `NODE_PROJECTS` injected based on intent detection.
+        - Proactive notifications: meeting reminders (30min before), overdue alerts, project deadlines (3 days), daily briefing (6-9am), DARVIS insights (max 2-3x/day).
+        - Secretary Dashboard: accessible via header icon (owner-only), 4 tabs (Tim, Meeting, Action Items, Projects) with full CRUD, inline editing, status toggling.
+        - Notification Center: bell icon with unread badge, grouped notifications by type.
+        - All secretary features owner-only protected.
+    - **Key Files**: `server/proactive.ts` (proactive system), `client/src/components/secretary-dashboard.tsx`, `client/src/components/notification-center.tsx`.
 
 ## External Dependencies
 - **OpenAI API**: Used for AI model inference (GPT-5).

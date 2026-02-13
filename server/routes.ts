@@ -26,6 +26,36 @@ import {
   clearConversationTags,
   getPassword,
   setSetting,
+  getTeamMembers,
+  getTeamMemberById,
+  upsertTeamMember,
+  updateTeamMember,
+  deleteTeamMember,
+  getMeetings,
+  getMeetingById,
+  getUpcomingMeetings,
+  getTodayMeetings,
+  createMeeting,
+  updateMeeting,
+  deleteMeeting,
+  getActionItems,
+  getOverdueActionItems,
+  getPendingActionItems,
+  getActionItemById,
+  createActionItem,
+  updateActionItem,
+  deleteActionItem,
+  getProjects,
+  getProjectById,
+  upsertProject,
+  updateProject,
+  deleteProject,
+  getNotifications,
+  getUnreadNotificationCount,
+  createNotification,
+  markNotificationRead,
+  markAllNotificationsRead,
+  deleteNotification,
 } from "./db";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -683,6 +713,163 @@ function detectDRIdentity(message: string): boolean {
   return patterns.some((p) => p.test(lower));
 }
 
+function detectTeamIntent(message: string): boolean {
+  const lower = message.toLowerCase();
+  const patterns = [
+    /\b(tim|team|anggota|staff|karyawan|pegawai|anak\s+buah|bawahan)\b/,
+    /\b(si\s+\w+|nama\s+\w+)\b.*\b(kerjanya|tugasnya|performanya|kinerjanya)\b/,
+    /\b(rekrut|hire|pecat|fire|promosi|rotasi|mutasi)\b/,
+    /\b(delegasi|assign|kasih\s+tugas|suruh|minta\s+\w+\s+untuk)\b/,
+    /\b(evaluasi|review\s+(kinerja|performance)|assessment)\b/,
+    /\b(andi|sari|budi|dina|rudi|fajar|dewi|agus|rina|hendra)\b/i,
+    /\b(strengths|kelemahan|kelebihan|kekurangan|potensi)\b/,
+    /\b(leadership|kepemimpinan|coaching|mentoring|bimbingan)\b/,
+  ];
+  return patterns.some((p) => p.test(lower));
+}
+
+function detectMeetingIntent(message: string): boolean {
+  const lower = message.toLowerCase();
+  const patterns = [
+    /\b(meeting|rapat|pertemuan|diskusi|briefing|sync|standup|weekly|monthly)\b/,
+    /\b(agenda|jadwal\s+(rapat|meeting)|notulen|minutes|resume\s+(rapat|meeting))\b/,
+    /\b(besok\s+(jam|pukul|pagi|siang|sore)|hari\s+ini\s+jam|nanti\s+jam)\b/,
+    /\b(ketemu|meet|conference|zoom|gmeet|teams)\b/,
+    /\b(undang|invite|ajak\s+\w+\s+ke\s+(meeting|rapat))\b/,
+    /\b(keputusan\s+(dari|hasil)\s+(rapat|meeting))\b/,
+    /\b(follow.?up|tindak\s+lanjut)\b/,
+  ];
+  return patterns.some((p) => p.test(lower));
+}
+
+function detectProjectIntent(message: string): boolean {
+  const lower = message.toLowerCase();
+  const patterns = [
+    /\b(project|proyek|program|inisiatif|initiative)\b/,
+    /\b(milestone|target|deadline|deliverable|sprint)\b/,
+    /\b(progress|kemajuan|perkembangan|status\s+project)\b/,
+    /\b(launch|launching|go.?live|rollout|implementasi)\b/,
+    /\b(roadmap|timeline|gantt|planning)\b/,
+    /\b(scope|requirement|spek|spesifikasi)\b/,
+    /\b(budget|anggaran|biaya\s+project)\b/,
+    /\b(pic|penanggung\s+jawab|owner\s+project)\b/,
+    /\b(rfb|ewf|kpf|bpf|sgb)\b/i,
+  ];
+  return patterns.some((p) => p.test(lower));
+}
+
+function detectActionItemIntent(message: string): boolean {
+  const lower = message.toLowerCase();
+  const patterns = [
+    /\b(action\s+item|to.?do|tugas|task)\b/,
+    /\b(harus|wajib|perlu|mesti)\b.*\b(selesai|done|kelar|beres)\b/,
+    /\b(reminder|ingetin|jangan\s+lupa)\b/,
+    /\b(overdue|terlambat|lewat\s+deadline|belum\s+selesai)\b/,
+    /\b(prioritas|urgent|segera|asap|penting\s+banget)\b/,
+    /\b(nanti\s+gw|besok\s+gw|gw\s+harus|gw\s+mau)\b/,
+  ];
+  return patterns.some((p) => p.test(lower));
+}
+
+function buildSecretaryContext(message: string): string {
+  let context = "";
+
+  const isTeam = detectTeamIntent(message);
+  const isMeeting = detectMeetingIntent(message);
+  const isProject = detectProjectIntent(message);
+  const isAction = detectActionItemIntent(message);
+
+  if (isTeam) {
+    const members = getTeamMembers("active");
+    if (members.length > 0) {
+      context += `\n\n---\nNODE_TEAM — Data Tim Mas DR:\n`;
+      for (const m of members) {
+        context += `- **${m.name}**`;
+        if (m.position) context += ` (${m.position})`;
+        const details: string[] = [];
+        if (m.strengths) details.push(`Kelebihan: ${m.strengths}`);
+        if (m.weaknesses) details.push(`Kelemahan: ${m.weaknesses}`);
+        if (m.responsibilities) details.push(`Tanggung jawab: ${m.responsibilities}`);
+        if (m.active_projects) details.push(`Project aktif: ${m.active_projects}`);
+        if (m.notes) details.push(`Catatan: ${m.notes}`);
+        if (details.length > 0) context += ` — ${details.join("; ")}`;
+        context += `\n`;
+      }
+      context += `Gunakan data tim ini untuk memberikan saran yang kontekstual. Referensi nama dan peran mereka secara natural.`;
+    }
+  }
+
+  if (isMeeting) {
+    const upcoming = getUpcomingMeetings();
+    const today = getTodayMeetings();
+    if (upcoming.length > 0 || today.length > 0) {
+      context += `\n\n---\nNODE_MEETING — Jadwal Meeting:\n`;
+      if (today.length > 0) {
+        context += `Hari ini:\n`;
+        for (const m of today) {
+          context += `- ${m.title} (${m.date_time || "waktu belum ditentukan"})`;
+          if (m.participants) context += ` — Peserta: ${m.participants}`;
+          if (m.agenda) context += ` — Agenda: ${m.agenda}`;
+          context += `\n`;
+        }
+      }
+      const futureOnly = upcoming.filter(m => !today.find(t => t.id === m.id));
+      if (futureOnly.length > 0) {
+        context += `Mendatang:\n`;
+        for (const m of futureOnly.slice(0, 5)) {
+          context += `- ${m.title} (${m.date_time || "waktu belum ditentukan"})`;
+          if (m.participants) context += ` — Peserta: ${m.participants}`;
+          context += `\n`;
+        }
+      }
+      context += `Gunakan data meeting untuk memberikan reminder atau persiapan yang relevan.`;
+    }
+  }
+
+  if (isProject) {
+    const projects = getProjects("active");
+    if (projects.length > 0) {
+      context += `\n\n---\nNODE_PROJECTS — Project Aktif:\n`;
+      for (const p of projects) {
+        context += `- **${p.name}**`;
+        if (p.pic) context += ` (PIC: ${p.pic})`;
+        if (p.status) context += ` [${p.status}]`;
+        if (p.progress) context += ` — Progress: ${p.progress}%`;
+        if (p.deadline) context += ` — Deadline: ${p.deadline}`;
+        if (p.description) context += ` — ${p.description}`;
+        if (p.milestones) context += ` — Milestones: ${p.milestones}`;
+        context += `\n`;
+      }
+      context += `Referensi project secara natural. Bantu mas DR pantau progress dan identifikasi bottleneck.`;
+    }
+  }
+
+  if (isAction || isTeam || isMeeting || isProject) {
+    const overdue = getOverdueActionItems();
+    const pending = getPendingActionItems();
+    if (overdue.length > 0) {
+      context += `\n\n---\nACTION ITEMS OVERDUE (${overdue.length}):\n`;
+      for (const a of overdue.slice(0, 5)) {
+        context += `- ${a.title}`;
+        if (a.assignee) context += ` → ${a.assignee}`;
+        if (a.deadline) context += ` (deadline: ${a.deadline})`;
+        context += ` [${a.priority}]\n`;
+      }
+      context += `Ingatkan mas DR tentang item overdue secara natural jika relevan.`;
+    } else if (pending.length > 0 && isAction) {
+      context += `\n\n---\nACTION ITEMS PENDING (${pending.length}):\n`;
+      for (const a of pending.slice(0, 5)) {
+        context += `- ${a.title}`;
+        if (a.assignee) context += ` → ${a.assignee}`;
+        if (a.deadline) context += ` (deadline: ${a.deadline})`;
+        context += ` [${a.priority}]\n`;
+      }
+    }
+  }
+
+  return context;
+}
+
 async function extractProfileEnrichment(userId: string, userMessage: string, isContributorMode = false) {
   const contributorPrompt = `Kamu adalah sistem ekstraksi profil untuk DARVIS. Pesan ini datang dari KONTRIBUTOR — seseorang yang mengenal DR (Dian Ramadhan) secara pribadi. Karena kontributor pasti kenal DR, semua yang mereka sampaikan memiliki akurasi tinggi.
 
@@ -959,6 +1146,340 @@ export async function registerRoutes(
     }
   });
 
+  // ==================== TEAM MEMBERS API ====================
+  app.get("/api/team", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      const status = req.query.status as string | undefined;
+      return res.json({ members: getTeamMembers(status) });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/team/:id", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      const member = getTeamMemberById(Number(req.params.id));
+      if (!member) return res.status(404).json({ message: "Not found" });
+      return res.json(member);
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/team", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      const { name, position, strengths, weaknesses, responsibilities, active_projects, notes } = req.body;
+      if (!name) return res.status(400).json({ message: "Name required" });
+      const id = upsertTeamMember({ name, position, strengths, weaknesses, responsibilities, active_projects, notes });
+      return res.json({ success: true, id });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.patch("/api/team/:id", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      const id = Number(req.params.id);
+      const member = getTeamMemberById(id);
+      if (!member) return res.status(404).json({ message: "Not found" });
+      updateTeamMember(id, req.body);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/team/:id", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      deleteTeamMember(Number(req.params.id));
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // ==================== MEETINGS API ====================
+  app.get("/api/meetings", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      const status = req.query.status as string | undefined;
+      return res.json({ meetings: getMeetings(status) });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/meetings/upcoming", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      return res.json({ meetings: getUpcomingMeetings() });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/meetings/today", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      return res.json({ meetings: getTodayMeetings() });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/meetings/:id", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      const meeting = getMeetingById(Number(req.params.id));
+      if (!meeting) return res.status(404).json({ message: "Not found" });
+      return res.json(meeting);
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/meetings", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      const { title, date_time, participants, agenda } = req.body;
+      if (!title) return res.status(400).json({ message: "Title required" });
+      const id = createMeeting({ title, date_time, participants, agenda });
+      return res.json({ success: true, id });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.patch("/api/meetings/:id", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      const id = Number(req.params.id);
+      const meeting = getMeetingById(id);
+      if (!meeting) return res.status(404).json({ message: "Not found" });
+      updateMeeting(id, req.body);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/meetings/:id", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      deleteMeeting(Number(req.params.id));
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // ==================== ACTION ITEMS API ====================
+  app.get("/api/action-items", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      const status = req.query.status as string | undefined;
+      const assignee = req.query.assignee as string | undefined;
+      return res.json({ items: getActionItems({ status, assignee }) });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/action-items/overdue", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      return res.json({ items: getOverdueActionItems() });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/action-items/pending", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      return res.json({ items: getPendingActionItems() });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/action-items/:id", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      const item = getActionItemById(Number(req.params.id));
+      if (!item) return res.status(404).json({ message: "Not found" });
+      return res.json(item);
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/action-items", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      const { title, assignee, deadline, priority, source, meeting_id, notes } = req.body;
+      if (!title) return res.status(400).json({ message: "Title required" });
+      const id = createActionItem({ title, assignee, deadline, priority, source, meeting_id, notes });
+      return res.json({ success: true, id });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.patch("/api/action-items/:id", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      const id = Number(req.params.id);
+      const item = getActionItemById(id);
+      if (!item) return res.status(404).json({ message: "Not found" });
+      updateActionItem(id, req.body);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/action-items/:id", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      deleteActionItem(Number(req.params.id));
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // ==================== PROJECTS API ====================
+  app.get("/api/projects", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      const status = req.query.status as string | undefined;
+      return res.json({ projects: getProjects(status) });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/projects/:id", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      const project = getProjectById(Number(req.params.id));
+      if (!project) return res.status(404).json({ message: "Not found" });
+      return res.json(project);
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/projects", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      const { name, description, pic, status, milestones, deadline, progress, notes } = req.body;
+      if (!name) return res.status(400).json({ message: "Name required" });
+      const id = upsertProject({ name, description, pic, status, milestones, deadline, progress, notes });
+      return res.json({ success: true, id });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.patch("/api/projects/:id", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      const id = Number(req.params.id);
+      const project = getProjectById(id);
+      if (!project) return res.status(404).json({ message: "Not found" });
+      updateProject(id, req.body);
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/projects/:id", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      deleteProject(Number(req.params.id));
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // ==================== NOTIFICATIONS API ====================
+  app.get("/api/notifications", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      const unreadOnly = req.query.unread === "true";
+      const limit = Number(req.query.limit) || 50;
+      return res.json({ notifications: getNotifications(unreadOnly, limit), unread_count: getUnreadNotificationCount() });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/notifications/count", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      return res.json({ count: getUnreadNotificationCount() });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/notifications/:id/read", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      markNotificationRead(Number(req.params.id));
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/notifications/read-all", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      markAllNotificationsRead();
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/notifications/:id", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      deleteNotification(Number(req.params.id));
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // ==================== DASHBOARD SUMMARY API ====================
+  app.get("/api/dashboard", (req, res) => {
+    try {
+      if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
+      return res.json({
+        team_count: getTeamMembers("active").length,
+        upcoming_meetings: getUpcomingMeetings().length,
+        today_meetings: getTodayMeetings().length,
+        pending_actions: getPendingActionItems().length,
+        overdue_actions: getOverdueActionItems().length,
+        active_projects: getProjects("active").length,
+        unread_notifications: getUnreadNotificationCount(),
+      });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   app.post("/api/change-password", (req, res) => {
     try {
       if (req.session.isOwner !== true) {
@@ -1181,6 +1702,13 @@ WAJIB:
           systemContent += `\n\n---\nFRAMEWORK SUMBER (basis cara berpikir DARVIS — JANGAN sebut nama/identitas, tapi GUNAKAN pola pikirnya: sistemik, legacy-oriented, counter-angle, risiko jangka panjang, meritokrasi, data-driven):\n${drProfile}`;
         } else {
           systemContent += `\n\n---\nPROFIL FONDASI DR (konteks untuk memahami cerita kontributor):\n${drProfile}`;
+        }
+      }
+
+      if (isOwner) {
+        const secretaryCtx = buildSecretaryContext(message);
+        if (secretaryCtx) {
+          systemContent += secretaryCtx;
         }
       }
 
@@ -1511,6 +2039,12 @@ WAJIB:
         }
 
         const msgCount = getMessageCount(userId);
+        if (isOwner) {
+          extractSecretaryData(message, reply).catch((err) => {
+            console.error("Secretary extraction error:", err?.message || err);
+          });
+        }
+
         if (msgCount > 0 && msgCount % 20 === 0) {
           generateSummary(userId).catch((err) => {
             console.error("Auto-summary error:", err?.message || err);
@@ -1672,5 +2206,161 @@ async function generateSummary(userId: string) {
   if (summaryText) {
     upsertSummary(userId, summaryText);
     console.log(`Auto-summary generated for ${userId} (${allMessages.length} messages)`);
+  }
+}
+
+async function extractSecretaryData(userMessage: string, assistantReply: string) {
+  const combinedText = `User: ${userMessage}\n\nDARVIS: ${assistantReply}`;
+
+  const teamMembers = getTeamMembers();
+  const existingProjects = getProjects();
+  const pendingActions = getPendingActionItems();
+
+  const existingContext = [
+    teamMembers.length > 0 ? `Tim yang sudah tercatat: ${teamMembers.map(m => `${m.name} (${m.position || "no position"})`).join(", ")}` : "",
+    existingProjects.length > 0 ? `Project yang sudah tercatat: ${existingProjects.map(p => `${p.name} (${p.status})`).join(", ")}` : "",
+    pendingActions.length > 0 ? `Action items pending: ${pendingActions.slice(0, 10).map(a => `${a.title} → ${a.assignee || "unassigned"}`).join(", ")}` : "",
+  ].filter(Boolean).join("\n");
+
+  const prompt = `Kamu adalah sistem extraction DARVIS. Analisis percakapan berikut dan ekstrak data terkait TIM, MEETING, ACTION ITEMS, dan PROJECT.
+
+${existingContext ? `KONTEKS YANG SUDAH ADA:\n${existingContext}\n` : ""}
+PERCAKAPAN:
+${combinedText}
+
+Ekstrak dalam format JSON dengan struktur:
+{
+  "team_members": [
+    { "name": "string", "position": "string|null", "strengths": "string|null", "weaknesses": "string|null", "responsibilities": "string|null", "notes": "string|null" }
+  ],
+  "meetings": [
+    { "title": "string", "date_time": "YYYY-MM-DD HH:MM|null", "participants": "comma-separated names|null", "agenda": "string|null" }
+  ],
+  "action_items": [
+    { "title": "string", "assignee": "string|null", "deadline": "YYYY-MM-DD|null", "priority": "low|medium|high|urgent", "source": "conversation", "notes": "string|null" }
+  ],
+  "projects": [
+    { "name": "string", "description": "string|null", "pic": "string|null", "status": "planning|active|on_hold|completed|cancelled", "milestones": "string|null", "deadline": "YYYY-MM-DD|null", "progress": 0, "notes": "string|null" }
+  ],
+  "follow_ups": [
+    { "text": "string", "deadline_hint": "string|null" }
+  ]
+}
+
+RULES:
+- Hanya ekstrak informasi yang JELAS disebutkan dalam percakapan, jangan berasumsi
+- Untuk nama tim member, gunakan nama yang disebutkan (contoh: "Andi", "Sari", bukan "dia" atau "orang itu")
+- Jika ada nama yang sudah tercatat di konteks, UPDATE info-nya alih-alih buat entri baru
+- Untuk meeting, coba parsing tanggal/waktu jika disebutkan ("besok jam 10" → hitung dari hari ini)
+- Untuk action items: tangkap instruksi, delegasi, tugas, follow-up yang disebut
+- Untuk projects: tangkap project baru atau update status project existing
+- follow_ups: tangkap hal-hal yang user bilang "nanti gw..." atau "besok mau..." sebagai reminder
+- Jika tidak ada data untuk suatu kategori, kembalikan array kosong
+- Tanggal hari ini: ${new Date().toISOString().split('T')[0]}
+- Maksimal 5 item per kategori
+
+Respond ONLY with valid JSON, no other text.`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-5",
+      messages: [{ role: "user", content: prompt }],
+      max_completion_tokens: 2048,
+    });
+
+    const raw = completion.choices[0]?.message?.content?.trim();
+    if (!raw) return;
+
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return;
+
+    const parsed = JSON.parse(jsonMatch[0]);
+
+    if (Array.isArray(parsed.team_members) && parsed.team_members.length > 0) {
+      for (const member of parsed.team_members.slice(0, 5)) {
+        if (member.name && typeof member.name === "string") {
+          upsertTeamMember({
+            name: member.name,
+            position: member.position || null,
+            strengths: member.strengths || null,
+            weaknesses: member.weaknesses || null,
+            responsibilities: member.responsibilities || null,
+            notes: member.notes || null,
+          });
+          console.log(`Secretary: upserted team member "${member.name}"`);
+        }
+      }
+    }
+
+    if (Array.isArray(parsed.meetings) && parsed.meetings.length > 0) {
+      for (const meeting of parsed.meetings.slice(0, 5)) {
+        if (meeting.title && typeof meeting.title === "string") {
+          createMeeting({
+            title: meeting.title,
+            date_time: meeting.date_time || null,
+            participants: meeting.participants || null,
+            agenda: meeting.agenda || null,
+          });
+          console.log(`Secretary: created meeting "${meeting.title}"`);
+        }
+      }
+    }
+
+    if (Array.isArray(parsed.action_items) && parsed.action_items.length > 0) {
+      for (const item of parsed.action_items.slice(0, 5)) {
+        if (item.title && typeof item.title === "string") {
+          createActionItem({
+            title: item.title,
+            assignee: item.assignee || null,
+            deadline: item.deadline || null,
+            priority: item.priority || "medium",
+            source: "conversation",
+            notes: item.notes || null,
+          });
+          console.log(`Secretary: created action item "${item.title}"`);
+        }
+      }
+    }
+
+    if (Array.isArray(parsed.projects) && parsed.projects.length > 0) {
+      for (const project of parsed.projects.slice(0, 5)) {
+        if (project.name && typeof project.name === "string") {
+          upsertProject({
+            name: project.name,
+            description: project.description || null,
+            pic: project.pic || null,
+            status: project.status || "active",
+            milestones: project.milestones || null,
+            deadline: project.deadline || null,
+            progress: project.progress || 0,
+            notes: project.notes || null,
+          });
+          console.log(`Secretary: upserted project "${project.name}"`);
+        }
+      }
+    }
+
+    if (Array.isArray(parsed.follow_ups) && parsed.follow_ups.length > 0) {
+      for (const fu of parsed.follow_ups.slice(0, 3)) {
+        if (fu.text && typeof fu.text === "string") {
+          createActionItem({
+            title: fu.text,
+            assignee: "DR",
+            deadline: fu.deadline_hint || null,
+            priority: "medium",
+            source: "follow-up dari percakapan",
+          });
+          console.log(`Secretary: created follow-up "${fu.text}"`);
+        }
+      }
+    }
+
+    const totalExtracted = (parsed.team_members?.length || 0) + (parsed.meetings?.length || 0) +
+      (parsed.action_items?.length || 0) + (parsed.projects?.length || 0) + (parsed.follow_ups?.length || 0);
+    if (totalExtracted > 0) {
+      console.log(`Secretary extraction complete: ${totalExtracted} items extracted`);
+    }
+  } catch (err: any) {
+    console.error("Secretary extraction failed:", err?.message || err);
   }
 }
