@@ -1169,9 +1169,9 @@ export default function ChatPage() {
                       "Menurut gw, DR itu...",
                     ]
                   : [
-                      "Bantu saya pikirin keputusan ini",
-                      "Saya butuh framework untuk strategi",
-                      "Kasih perspektif dari sudut lain",
+                      "Bantu gw pikirin keputusan ini",
+                      "Gw butuh strategi nih",
+                      "Kasih sudut pandang lain dong",
                     ]
                 ).map((q, i) => (
                   <button
