@@ -9,6 +9,7 @@ export const chatMessageSchema = z.object({
 export const chatRequestSchema = z.object({
   message: z.string().min(1),
   images: z.array(z.string()).optional(),
+  voiceMode: z.boolean().optional(),
 });
 
 export type ChatMessage = z.infer<typeof chatMessageSchema>;

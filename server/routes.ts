@@ -1711,7 +1711,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid request body" });
       }
 
-      const { message, images } = parsed.data;
+      const { message, images, voiceMode } = parsed.data;
       const hasImages = images && images.length > 0;
 
       const corePrompt = readPromptFile("DARVIS_CORE.md");
@@ -1984,6 +1984,17 @@ GAYA NGOBROL:
         systemContent += prefBlock;
       }
 
+      if (voiceMode) {
+        systemContent += `\n\n---\n🎙️ VOICE CONVERSATION MODE AKTIF — WAJIB DIPATUHI:
+- User sedang NGOBROL LANGSUNG pakai suara. Responsmu akan dibacakan oleh TTS.
+- JAWAB MAKSIMAL 2-3 KALIMAT PENDEK. Ini percakapan lisan, BUKAN tulisan.
+- LANGSUNG ke inti. TANPA pembukaan, TANPA daftar panjang, TANPA bullet points.
+- Gaya: ngobrol santai, natural, kayak obrolan telepon. Pendek, padat, mengalir.
+- JANGAN pakai markdown (bold, heading, list, code block). Plain text aja.
+- Kalau topik kompleks, jawab singkat dulu, tawarin: "Mau gw jelasin lebih detail?"
+- INGAT: setiap kata = waktu tunggu user. Lebih singkat = lebih baik.`;
+      }
+
       const apiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
       apiMessages.push({ role: "system", content: systemContent });
 
@@ -2052,7 +2063,7 @@ GAYA NGOBROL:
         const stream = await openai.chat.completions.create({
           model: "gpt-5",
           messages: apiMessages,
-          max_completion_tokens: 2048,
+          max_completion_tokens: voiceMode ? 300 : 2048,
           stream: true,
         }, { signal: abortController.signal });
 

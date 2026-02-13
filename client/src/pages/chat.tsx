@@ -323,10 +323,14 @@ export default function ChatPage() {
 
       if (!cleanText) { setTtsPlaying(false); return; }
 
+      const ttsText = conversationModeRef.current && cleanText.length > 500
+        ? cleanText.slice(0, 500)
+        : cleanText;
+
       const res = await fetch("/api/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: cleanText, voice: ttsVoice }),
+        body: JSON.stringify({ text: ttsText, voice: ttsVoice }),
         credentials: "include",
       });
 
@@ -622,10 +626,14 @@ export default function ChatPage() {
       controller = new AbortController();
       fetchTimeout = setTimeout(() => controller?.abort(), 90000);
 
+      const chatPayload = conversationModeRef.current
+        ? { ...payload, voiceMode: true }
+        : payload;
+
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(chatPayload),
         credentials: "include",
         signal: controller.signal,
       });
@@ -745,6 +753,7 @@ export default function ChatPage() {
       const userMsg: ChatMessage = { role: "user", content: text };
       setMessages((prev) => [...prev, userMsg]);
       setInput("");
+      lastHeardTextRef.current = "";
       sendMessage({ message: text });
     };
   }, [sendMessage, isStreaming]);
