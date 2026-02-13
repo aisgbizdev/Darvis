@@ -1527,14 +1527,30 @@ WAJIB:
         clearInterval(heartbeatInterval);
         res.removeListener("close", serverCleanup);
         const isTimeout = streamErr?.name === "AbortError";
-        const errorMsg = isTimeout
-          ? "Respons terlalu lama. Coba kirim ulang ya."
-          : "Koneksi terputus. Coba lagi ya.";
-        console.error("Stream error:", isTimeout ? "TIMEOUT" : streamErr?.message || streamErr);
-        if (!res.headersSent) {
-          return res.status(500).json({ message: errorMsg });
+        const statusCode = streamErr?.status || streamErr?.statusCode || streamErr?.code;
+        const errMessage = streamErr?.message || String(streamErr);
+        const isQuota = statusCode === 429 || errMessage.includes("429") || errMessage.includes("quota") || errMessage.includes("rate limit");
+        const isAuthError = statusCode === 401 || statusCode === 403;
+
+        let errorMsg: string;
+        let retryable = true;
+        if (isQuota) {
+          errorMsg = "Kuota API sedang penuh. Coba lagi dalam beberapa menit ya.";
+          retryable = false;
+        } else if (isAuthError) {
+          errorMsg = "Ada masalah autentikasi API. Hubungi admin.";
+          retryable = false;
+        } else if (isTimeout) {
+          errorMsg = "Respons terlalu lama. Coba kirim ulang ya.";
+        } else {
+          errorMsg = "Koneksi terputus. Coba lagi ya.";
         }
-        res.write(`data: ${JSON.stringify({ type: "error", message: errorMsg })}\n\n`);
+
+        console.error("Stream error:", isQuota ? "QUOTA_EXCEEDED" : isTimeout ? "TIMEOUT" : errMessage);
+        if (!res.headersSent) {
+          return res.status(isQuota ? 429 : 500).json({ message: errorMsg });
+        }
+        res.write(`data: ${JSON.stringify({ type: "error", message: errorMsg, retryable })}\n\n`);
         res.end();
       }
     } catch (err: any) {

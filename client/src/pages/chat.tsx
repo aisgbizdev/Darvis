@@ -229,7 +229,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   gaya_bahasa: "Gaya Bahasa",
 };
 
-function parseSSELine(line: string): { type: string; content?: string; nodeUsed?: string | null; contextMode?: string | null; fullReply?: string; message?: string } | null {
+function parseSSELine(line: string): { type: string; content?: string; nodeUsed?: string | null; contextMode?: string | null; fullReply?: string; message?: string; retryable?: boolean } | null {
   if (!line.startsWith("data: ")) return null;
   try {
     return JSON.parse(line.slice(6));
@@ -539,7 +539,8 @@ export default function ChatPage() {
             else setCurrentContextMode(null);
           } else if (parsed.type === "error") {
             cleanup();
-            if (retryCount < MAX_RETRIES && !gotData) {
+            const canRetry = parsed.retryable !== false;
+            if (canRetry && retryCount < MAX_RETRIES && !gotData) {
               controller?.abort();
               setStreamingContent("Mencoba ulang...");
               await new Promise(r => setTimeout(r, 2000));
