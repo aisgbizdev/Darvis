@@ -57,7 +57,9 @@ import {
   markNotificationRead,
   markAllNotificationsRead,
   deleteNotification,
+  savePushSubscription,
 } from "./db";
+import { getVapidPublicKey, sendPushToAll } from "./push";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -1436,6 +1438,28 @@ export async function registerRoutes(
     try {
       if (req.session.isOwner !== true) return res.status(403).json({ message: "Owner only" });
       deleteNotification(Number(req.params.id));
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // ==================== PUSH NOTIFICATIONS API ====================
+  app.get("/api/push/vapid-key", (_req, res) => {
+    return res.json({ publicKey: getVapidPublicKey() });
+  });
+
+  app.post("/api/push/subscribe", (req, res) => {
+    try {
+      const { subscription } = req.body;
+      if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+        return res.status(400).json({ message: "Invalid subscription" });
+      }
+      savePushSubscription({
+        endpoint: subscription.endpoint,
+        keys_p256dh: subscription.keys.p256dh,
+        keys_auth: subscription.keys.auth,
+      });
       return res.json({ success: true });
     } catch (err: any) {
       return res.status(500).json({ message: "Internal server error" });

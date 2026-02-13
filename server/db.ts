@@ -885,4 +885,40 @@ export function deleteNotification(id: number) {
   db.prepare(`DELETE FROM notifications WHERE id = ?`).run(id);
 }
 
+// ==================== PUSH SUBSCRIPTIONS ====================
+db.exec(`
+  CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    endpoint TEXT NOT NULL UNIQUE,
+    keys_p256dh TEXT NOT NULL,
+    keys_auth TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
+export interface PushSubscription {
+  id: number;
+  endpoint: string;
+  keys_p256dh: string;
+  keys_auth: string;
+  created_at: string;
+}
+
+export function savePushSubscription(sub: { endpoint: string; keys_p256dh: string; keys_auth: string }) {
+  const existing = db.prepare(`SELECT id FROM push_subscriptions WHERE endpoint = ?`).get(sub.endpoint);
+  if (existing) {
+    db.prepare(`UPDATE push_subscriptions SET keys_p256dh = ?, keys_auth = ? WHERE endpoint = ?`).run(sub.keys_p256dh, sub.keys_auth, sub.endpoint);
+  } else {
+    db.prepare(`INSERT INTO push_subscriptions (endpoint, keys_p256dh, keys_auth) VALUES (?, ?, ?)`).run(sub.endpoint, sub.keys_p256dh, sub.keys_auth);
+  }
+}
+
+export function getAllPushSubscriptions(): PushSubscription[] {
+  return db.prepare(`SELECT * FROM push_subscriptions`).all() as PushSubscription[];
+}
+
+export function removePushSubscription(endpoint: string) {
+  db.prepare(`DELETE FROM push_subscriptions WHERE endpoint = ?`).run(endpoint);
+}
+
 export default db;

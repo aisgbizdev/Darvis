@@ -52,19 +52,120 @@ function timeAgo(dateStr: string): string {
   return `${diffDays}h lalu`;
 }
 
+async function subscribeToPush() {
+  try {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") return;
+
+    const registration = await navigator.serviceWorker.ready;
+    const existing = await registration.pushManager.getSubscription();
+    if (existing) {
+      await sendSubscriptionToServer(existing);
+      return;
+    }
+
+    const res = await fetch("/api/push/vapid-key");
+    const { publicKey } = await res.json();
+    if (!publicKey) return;
+
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey),
+    });
+    await sendSubscriptionToServer(subscription);
+  } catch {}
+}
+
+async function sendSubscriptionToServer(subscription: PushSubscriptionJSON | globalThis.PushSubscription) {
+  try {
+    const sub = "toJSON" in subscription && typeof subscription.toJSON === "function" ? subscription.toJSON() : subscription;
+    await fetch("/api/push/subscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subscription: sub }),
+    });
+  } catch {}
+}
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+function showBrowserNotification(title: string, body: string) {
+  if ("Notification" in window && Notification.permission === "granted") {
+    try {
+      if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: "SHOW_NOTIFICATION",
+          title,
+          body,
+        });
+      } else {
+        new Notification(title, {
+          body,
+          icon: "/darvis-logo.png",
+          badge: "/darvis-logo.png",
+          tag: "darvis-notif",
+        } as NotificationOptions);
+      }
+    } catch {
+      new Notification(title, { body, icon: "/darvis-logo.png" });
+    }
+  }
+}
+
 export function NotificationCenter() {
   const [isOpen, setIsOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const lastSeenIdRef = useRef<number>(0);
+  const initialLoadRef = useRef(true);
+
+  useEffect(() => {
+    subscribeToPush();
+  }, []);
 
   const { data: notifData } = useQuery<NotificationResponse>({
     queryKey: ["/api/notifications"],
-    refetchInterval: 30000,
+    refetchInterval: 15000,
   });
 
   const { data: countData } = useQuery<{ count: number }>({
     queryKey: ["/api/notifications/count"],
-    refetchInterval: 15000,
+    refetchInterval: 10000,
   });
+
+  useEffect(() => {
+    if (!notifData?.notifications?.length) return;
+    const unread = notifData.notifications.filter(n => n.read === 0);
+    if (unread.length === 0) return;
+
+    const maxId = Math.max(...unread.map(n => n.id));
+
+    if (initialLoadRef.current) {
+      lastSeenIdRef.current = maxId;
+      initialLoadRef.current = false;
+      return;
+    }
+
+    const newNotifs = unread.filter(n => n.id > lastSeenIdRef.current);
+    if (newNotifs.length > 0 && !isOpen) {
+      const latest = newNotifs[0];
+      showBrowserNotification(latest.title, latest.message);
+    }
+
+    if (maxId > lastSeenIdRef.current) {
+      lastSeenIdRef.current = maxId;
+    }
+  }, [notifData, isOpen]);
 
   const markReadMutation = useMutation({
     mutationFn: async (id: number) => {

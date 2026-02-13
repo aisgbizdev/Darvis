@@ -7,12 +7,19 @@ import {
   getOverdueActionItems,
   getPendingActionItems,
   getProjects,
-  createNotification,
+  createNotification as dbCreateNotification,
   getNotifications,
   getConversationTags,
   getSetting,
   setSetting,
 } from "./db";
+import { sendPushToAll } from "./push";
+
+function createNotification(data: { type: string; title: string; message: string; data?: string | null }): number {
+  const id = dbCreateNotification(data);
+  sendPushToAll(data.title, data.message).catch(() => {});
+  return id;
+}
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
