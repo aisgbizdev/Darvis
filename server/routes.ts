@@ -77,78 +77,63 @@ const ENRICHMENT_CATEGORY_LABELS: Record<string, string> = {
 };
 
 const SOLID_GROUP_KEYWORDS = [
-  "solid", "solid group", "rfb", "bpf", "kpf", "ewf", "sgb",
-  "berjangka", "website resmi", "afiliasi", "holding", "grup",
-  "rifan", "bestprofit", "kontak perkasa", "equityworld", "solid gold",
-  "legalitas", "pt "
+  "solid group", "solid gold berjangka", "sgb",
+  "rfb", "bpf", "kpf", "ewf",
+  "rifan", "rifan financindo", "bestprofit",
+  "kontak perkasa", "equityworld",
+  "solid gold"
 ];
 
 const NM_KEYWORDS = [
-  "harga", "price",
-  "emas", "gold", "xau", "xauusd",
-  "oil", "minyak", "energy", "energi", "crude",
-  "market", "pasar", "bursa",
+  "newsmaker", "nm23",
+  "harga emas", "harga gold", "harga minyak", "harga oil",
+  "xau", "xauusd",
+  "crude oil",
   "inflasi", "inflation",
   "suku bunga", "interest rate",
-  "the fed", "federal reserve", "bank sentral", "bank indonesia",
-  "data ekonomi", "news", "outlook",
-  "indeks", "index", "ihsg", "dow jones", "nasdaq", "s&p",
-  "forex", "valas", "kurs", "dollar", "dolar",
-  "commodity", "komoditas",
-  "obligasi", "bond", "yield",
-  "gdp", "pdb",
+  "the fed", "federal reserve", "bank sentral",
+  "data ekonomi", "outlook pasar",
+  "ihsg", "dow jones", "nasdaq", "s&p",
+  "forex", "valas",
+  "komoditas", "commodity",
   "nonfarm", "nfp", "cpi", "ppi",
-  "rally", "bearish", "bullish", "sideways",
+  "bearish", "bullish", "sideways",
   "resistance", "support", "breakout",
-  "sentimen", "sentiment",
+  "sentimen pasar", "sentiment",
   "resesi", "recession",
   "tapering", "quantitative",
-  "trading", "investasi"
+  "analisis market", "analisis pasar"
 ];
 
 const AISG_KEYWORDS = [
-  "audit", "evaluasi", "evaluasi kinerja",
-  "kinerja", "performa", "performance",
-  "cabang", "tim", "divisi", "departemen",
-  "peran", "posisi", "jabatan", "job desc",
-  "overload", "beban kerja",
-  "disiplin", "konsistensi",
-  "integritas",
-  "early warning", "ews",
-  "governance", "tata kelola",
-  "pilar", "prodem",
-  "rotasi", "mutasi",
-  "sop", "prosedur",
-  "risiko organisasi", "risiko sistem",
+  "aisg", "aisg23",
+  "evaluasi kinerja", "audit kinerja", "audit internal",
+  "18 pilar", "pilar kompetensi",
+  "prodem",
+  "early warning system", "ews",
+  "fit and proper",
+  "governance",
   "struktur organisasi",
-  "penilaian", "assessment",
-  "kesesuaian", "fit and proper",
-  "aisg"
+  "risiko organisasi", "risiko sistem"
 ];
 
 const RISK_GUARD_KEYWORDS = [
-  "risiko", "risk",
-  "martingale", "averaging",
-  "leverage", "margin",
-  "drawdown", "loss",
+  "martingale", "averaging down",
+  "leverage", "margin call",
+  "drawdown",
   "money management",
   "aman atau tidak", "aman gak", "aman nggak", "aman tidak",
   "perlindungan nasabah",
-  "margin call",
   "overtrading",
   "black swan",
-  "lot", "entry", "exit",
-  "sinyal", "signal",
   "stop loss", "take profit",
   "cut loss",
-  "floating", "floating loss",
+  "floating loss",
   "likuidasi",
   "eksposur", "exposure",
   "hedging", "hedge",
   "risk reward", "risk management",
   "manajemen risiko",
-  "bahaya", "berbahaya",
-  "rugi", "kerugian",
   "modal habis", "modal hilang",
   "bangkrut",
 ];
@@ -156,46 +141,36 @@ const RISK_GUARD_KEYWORDS = [
 const COMPLIANCE_KEYWORDS = [
   "kyc", "know your customer",
   "kepatuhan", "compliance",
-  "kewajaran", "wajar",
   "nasabah bermasalah", "nasabah komplain",
-  "komplain", "sengketa",
-  "eskalasi",
-  "dokumentasi", "pencatatan",
+  "sengketa nasabah",
   "red flag",
   "apu ppt", "anti pencucian", "pencucian uang",
-  "sumber dana", "dana tidak jelas",
+  "sumber dana tidak jelas", "dana mencurigakan",
   "profil nasabah",
-  "regulasi",
   "top up besar", "withdrawal besar",
   "jaminan hasil", "janji hasil",
-  "outlier",
   "perlindungan nasabah",
-  "preventif", "pencegahan",
   "tata kelola operasional",
-  "pelanggaran",
+  "pelanggaran regulasi",
   "sanksi regulasi",
 ];
 
 const BIAS_KEYWORDS = [
-  "ragu", "bingung", "takut",
   "fomo", "impulsif",
-  "capek", "cape", "burnout", "stres", "stress",
-  "tekanan", "target berat",
-  "emosi", "panik", "cemas", "gelisah", "khawatir",
-  "overconfidence", "terlalu yakin", "pede banget", "ge er",
-  "galau", "bimbang", "nggak tenang", "gak tenang", "tidak tenang",
+  "burnout",
+  "tekanan berat", "target berat",
+  "overconfidence", "terlalu yakin", "pede banget",
+  "nggak tenang", "gak tenang", "tidak tenang",
   "frustasi", "frustrasi", "putus asa",
   "overwhelm", "kewalahan",
   "nggak bisa mikir", "gak bisa mikir", "tidak bisa berpikir",
-  "tertekan", "dipaksa", "terpaksa",
   "loss aversion", "sunk cost", "confirmation bias",
-  "ikut-ikutan", "ikut ikutan", "herd", "fomo banget",
-  "terlalu optimis", "bias", "mental",
-  "lelah", "capai", "kelelahan",
-  "grogi", "nervous", "deg-degan", "deg degan",
-  "minder", "ragu-ragu", "ragu ragu",
+  "ikut-ikutan", "ikut ikutan", "herd mentality",
+  "terlalu optimis", "bias kognitif",
   "overthinking", "kepikiran terus",
-  "nekat", "gegabah", "terburu", "buru-buru", "buru buru"
+  "nekat", "gegabah",
+  "ragu-ragu", "ragu ragu",
+  "deg-degan", "deg degan"
 ];
 
 const promptCache: Record<string, string> = {};
@@ -314,16 +289,12 @@ function detectAiSGIntent(message: string): boolean {
   }
 
   const aisgPatterns = [
-    /evaluasi\s+(kinerja|cabang|tim|individu|peran)/i,
-    /audit\s+(internal|cabang|tim|individu|sistem|organisasi)/i,
-    /beban\s+(kerja|tugas)\s+(berat|berlebih|terlalu)/i,
-    /(tidak|nggak?|gak?)\s+(sesuai|cocok)\s+(peran|posisi|jabatan)/i,
-    /early\s+warning/i,
-    /tata\s+kelola/i,
+    /audit\s+(internal|kinerja|organisasi)/i,
+    /evaluasi\s+kinerja/i,
+    /early\s+warning\s+system/i,
     /fit\s+and\s+proper/i,
-    /struktur\s+(organisasi|tim|cabang)/i,
-    /pola\s+(kerja|perilaku|kinerja)/i,
-    /indikator\s+(kinerja|risiko|peringatan)/i,
+    /pilar\s+kompetensi/i,
+    /18\s+pilar/i,
   ];
 
   return aisgPatterns.some((p) => p.test(lower));
@@ -337,18 +308,11 @@ function detectNMIntent(message: string): boolean {
   }
 
   const nmPatterns = [
-    /harga\s+(emas|gold|minyak|oil|saham)/i,
-    /kondisi\s+(pasar|market|ekonomi)/i,
-    /data\s+(ekonomi|makro|market)/i,
+    /harga\s+(emas|gold|minyak|oil|crude)/i,
+    /data\s+(ekonomi|makro)/i,
     /suku\s+bunga/i,
-    /bank\s+(sentral|indonesia|central)/i,
     /the\s+fed/i,
-    /berapa\s+(harga|kurs|nilai)/i,
-    /naik\s+(turun|drastis|tajam|signifikan)/i,
-    /turun\s+(drastis|tajam|signifikan|terus)/i,
-    /pasar\s+(global|domestik|keuangan|modal)/i,
-    /analisis?\s+(teknikal|fundamental|market|pasar)/i,
-    /tren\s+(pasar|market|harga|ekonomi)/i,
+    /analisis?\s+(teknikal|fundamental)/i,
   ];
 
   return nmPatterns.some((p) => p.test(lower));
@@ -362,18 +326,13 @@ function detectComplianceIntent(message: string): boolean {
   }
 
   const compliancePatterns = [
-    /nasabah\s+(bermasalah|komplain|baru\s+bermasalah)/i,
-    /sumber\s+(dana|uang)\s+(tidak|gak?|nggak?)\s*(jelas|konsisten)/i,
-    /profil\s+(nasabah|customer|klien)/i,
-    /top\s+up\s+(besar|segera|setelah\s+rugi)/i,
+    /nasabah\s+(bermasalah|komplain)/i,
+    /sumber\s+dana\s+(tidak|gak?|nggak?)\s*jelas/i,
+    /top\s+up\s+(besar|setelah\s+rugi)/i,
     /jaminan\s+(hasil|keuntungan|profit|return)/i,
     /janji\s+(hasil|keuntungan|profit|return)/i,
-    /dana\s+(besar|tidak\s+jelas|mencurigakan)/i,
-    /pola\s+(transaksi|komplain|withdrawal|top\s+up)/i,
-    /eskalasi\s+(internal|ke\s+direksi|ke\s+kepatuhan)/i,
-    /cabang\s+(outlier|bermasalah)/i,
-    /risiko\s+(reputasi|operasional|kepatuhan|compliance)/i,
-    /apakah\s+(ini\s+)?wajar/i,
+    /dana\s+mencurigakan/i,
+    /pencucian\s+uang/i,
   ];
 
   return compliancePatterns.some((p) => p.test(lower));
@@ -387,24 +346,13 @@ function detectRiskGuardIntent(message: string): boolean {
   }
 
   const riskPatterns = [
-    /aman\s+(gak|nggak|tidak|atau|ga)\s*/i,
-    /risiko\s+(trading|investasi|transaksi|strategi)/i,
     /bahaya\s+(martingale|averaging|leverage)/i,
     /berapa\s+(lot|margin|leverage)/i,
-    /bisa\s+(rugi|bangkrut|habis|hilang)/i,
     /modal\s+(habis|hilang|ludes|amblas)/i,
     /margin\s+call/i,
-    /stop\s+loss/i,
-    /take\s+profit/i,
-    /cut\s+loss/i,
-    /money\s+management/i,
-    /risk\s+(reward|management|control)/i,
-    /manajemen\s+risiko/i,
     /floating\s+(loss|minus|negatif)/i,
-    /perlindungan\s+(nasabah|investor|dana)/i,
-    /strategi\s+(aman|berbahaya|berisiko)/i,
-    /kasih\s+(sinyal|signal|lot|entry|exit)/i,
-    /minta\s+(sinyal|signal|lot|entry|exit)/i,
+    /kasih\s+(sinyal|signal)/i,
+    /minta\s+(sinyal|signal)/i,
   ];
 
   return riskPatterns.some((p) => p.test(lower));
@@ -1841,9 +1789,8 @@ GAYA NGOBROL:
         isBias = true;
       }
 
-      if (!voiceMode && tone.evaluative && !isAiSG && !isNM && !isRiskGuard && !isCompliance) {
-        isAiSG = true;
-      }
+
+
 
       if (isBias) {
         const biasPrompt = readPromptFile("DARVIS_NODE_BIAS.md");
@@ -1905,8 +1852,6 @@ GAYA NGOBROL:
           systemContent += `\n\n---\nNODE_RESOURCES:\n${resourcePrompt}`;
           nodesUsed.push("NODE_RESOURCES");
         }
-      } else {
-        systemContent += `\n\n---\nREFERRAL: Sisipkan referensi relevan di akhir (BIAS bias23.com, AiSG aisg23.replit.app, NM newsmaker.id, NM Ai nm23ai.replit.app). Max 1, natural, bukan iklan.`;
       }
 
       if (nodesUsed.length > 1) {
