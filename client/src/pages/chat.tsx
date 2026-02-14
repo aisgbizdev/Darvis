@@ -229,6 +229,26 @@ export default function ChatPage() {
   const vadSendRef = useRef<((text: string) => void) | null>(null);
   const lastHeardTextRef = useRef("");
 
+  const focusInput = useCallback(() => {
+    try {
+      setTimeout(() => {
+        if (inputRef.current && !conversationModeRef.current) {
+          inputRef.current.focus();
+        }
+      }, 100);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    focusInput();
+  }, [focusInput]);
+
+  useEffect(() => {
+    if (!showLoginPanel && !showPrefs && !showPasswordPanel && !showDashboard) {
+      focusInput();
+    }
+  }, [showLoginPanel, showPrefs, showPasswordPanel, showDashboard, focusInput]);
+
   useEffect(() => {
     if (!showDownloadMenu) return;
     const handleClickOutside = (e: MouseEvent) => {
@@ -1057,6 +1077,7 @@ export default function ChatPage() {
     setAttachedImages([]);
 
     sendMessage({ message: msgText, images: currentImages });
+    focusInput();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -1634,7 +1655,8 @@ export default function ChatPage() {
               onPaste={handlePaste}
               placeholder={isListening ? "Ngomong aja..." : attachedImages.length > 0 ? "Ceritain soal gambarnya..." : "Mau ngobrolin apa nih..."}
               rows={1}
-              className="flex-1 resize-none min-h-[42px] max-h-[120px] text-sm"
+              style={{ fontSize: "16px" }}
+              className="flex-1 resize-none min-h-[42px] max-h-[120px]"
               onInput={(e) => {
                 const target = e.target as HTMLTextAreaElement;
                 target.style.height = "auto";
