@@ -1654,17 +1654,7 @@ export default function ChatPage() {
                 >
                   {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                 </Button>
-                <Button
-                  onClick={toggleConversationMode}
-                  disabled={isStreaming}
-                  size="icon"
-                  variant="outline"
-                  className="toggle-elevate"
-                  data-testid="button-conversation-mode"
-                  title="Mode Percakapan"
-                >
-                  <Phone className="w-4 h-4" />
-                </Button>
+                {/* Voice conversation mode hidden for now */}
               </>
             )}
             <Button

@@ -2013,6 +2013,9 @@ GAYA NGOBROL:
       const apiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
       apiMessages.push({ role: "system", content: systemContent });
 
+      const systemTokenEstimate = Math.ceil(systemContent.length / 3.5);
+      console.log(`[PROMPT] System prompt size: ${systemContent.length} chars (~${systemTokenEstimate} tokens), nodes: [${nodesUsed.join(", ")}], voiceMode: ${voiceMode}`);
+
       const summary = getSummary(userId);
       if (summary) {
         apiMessages.push({
@@ -2078,13 +2081,18 @@ GAYA NGOBROL:
         const stream = await openai.chat.completions.create({
           model: "gpt-5",
           messages: apiMessages,
-          max_completion_tokens: voiceMode ? 300 : 800,
+          max_completion_tokens: voiceMode ? 2048 : 4096,
           stream: true,
         }, { signal: abortController.signal });
 
         let fullReply = "";
+        let lastFinishReason: string | null = null;
         for await (const chunk of stream) {
-          const delta = chunk.choices[0]?.delta?.content;
+          const choice = chunk.choices[0];
+          const delta = choice?.delta?.content;
+          if (choice?.finish_reason) {
+            lastFinishReason = choice.finish_reason;
+          }
           if (delta) {
             fullReply += delta;
             res.write(`data: ${JSON.stringify({ type: "chunk", content: delta })}\n\n`);
@@ -2100,6 +2108,7 @@ GAYA NGOBROL:
         const presentationMode = isOwner ? "mirror" : isContributor ? "contributor" : "twin";
         let reply: string;
         if (!fullReply.trim()) {
+          console.error(`[EMPTY_RESPONSE] API returned empty for message: "${message.substring(0, 100)}", prompt size: ${systemContent.length} chars, finishReason: ${lastFinishReason}`);
           reply = "Maaf, gw butuh waktu untuk memproses pertanyaan ini. Coba ulangi atau rephrase ya.";
           if (!isOwner) {
             reply = mergePersonasToUnifiedVoice(reply);
