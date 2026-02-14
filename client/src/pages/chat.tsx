@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Send, Trash2, Loader2, Lightbulb, X, Shield, Heart, Sparkles, User, Fingerprint, Mic, MicOff, ImagePlus, Lock, LogOut, Download, KeyRound, Users, Settings, Check, LayoutDashboard, Phone, PhoneOff, Volume2 } from "lucide-react";
+import { Send, Trash2, Loader2, Lightbulb, X, Shield, Heart, Sparkles, User, Fingerprint, Mic, MicOff, ImagePlus, Lock, LogOut, Download, KeyRound, Users, Settings, Check, LayoutDashboard, Phone, PhoneOff, Volume2, FileText, FileSpreadsheet, File, Paperclip } from "lucide-react";
 import { NotificationCenter } from "@/components/notification-center";
 import { SecretaryDashboard } from "@/components/secretary-dashboard";
 import ReactMarkdown from "react-markdown";
@@ -198,6 +198,8 @@ export default function ChatPage() {
   const [isListening, setIsListening] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
   const [attachedImages, setAttachedImages] = useState<string[]>([]);
+  const [attachedFile, setAttachedFile] = useState<{ name: string; type: string; content: string } | null>(null);
+  const [fileUploading, setFileUploading] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [isContributor, setIsContributor] = useState(false);
   const [showLoginPanel, setShowLoginPanel] = useState(false);
@@ -914,13 +916,42 @@ export default function ChatPage() {
     }
   }, [addImages]);
 
+  const DOCUMENT_EXTENSIONS = [".pdf", ".docx", ".xlsx", ".xls", ".txt", ".md", ".csv"];
+  const isDocumentFile = (file: File) => {
+    const ext = "." + file.name.split(".").pop()?.toLowerCase();
+    return DOCUMENT_EXTENSIONS.includes(ext);
+  };
+
+  const uploadDocumentFile = useCallback(async (file: File) => {
+    setFileUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const resp = await fetch("/api/upload-file", { method: "POST", body: formData, credentials: "include" });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.message || "Upload gagal");
+      setAttachedFile({ name: data.fileName, type: data.fileType, content: data.content });
+    } catch (err: any) {
+      alert(err.message || "Gagal upload file");
+    } finally {
+      setFileUploading(false);
+    }
+  }, []);
+
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      addImages(Array.from(files));
+      const file = files[0];
+      if (isDocumentFile(file)) {
+        uploadDocumentFile(file);
+      } else if (file.type.startsWith("image/")) {
+        addImages(Array.from(files));
+      } else {
+        alert("Format file tidak didukung. Gunakan gambar, PDF, Word, Excel, TXT, MD, atau CSV.");
+      }
     }
     e.target.value = "";
-  }, [addImages]);
+  }, [addImages, uploadDocumentFile]);
 
   const formatMessagesAsMD = useCallback((msgs: ChatMessage[]): string => {
     const now = new Date();
@@ -1076,20 +1107,30 @@ export default function ChatPage() {
 
   const handleSend = () => {
     const trimmed = input.trim();
-    const hasContent = trimmed || attachedImages.length > 0;
-    if (!hasContent || isStreaming) return;
+    const hasContent = trimmed || attachedImages.length > 0 || attachedFile;
+    if (!hasContent || isStreaming || fileUploading) return;
 
     if (isListening && recognitionRef.current) {
       recognitionRef.current.stop();
       setIsListening(false);
     }
 
-    const msgText = trimmed || "Tolong analisa gambar ini";
+    let msgText = trimmed;
+    if (attachedFile) {
+      const filePrefix = `[File: ${attachedFile.name} (${attachedFile.type})]\n\n${attachedFile.content}\n\n---\n\n`;
+      msgText = filePrefix + (trimmed || "Tolong analisa isi file ini");
+    } else if (!trimmed && attachedImages.length > 0) {
+      msgText = "Tolong analisa gambar ini";
+    }
+
     const currentImages = attachedImages.length > 0 ? [...attachedImages] : undefined;
-    const userMsg: ChatMessage = { role: "user", content: msgText, images: currentImages };
+    const displayText = attachedFile ? (trimmed || "Tolong analisa isi file ini") + `\n📎 ${attachedFile.name}` : msgText;
+    const userMsg: ChatMessage = { role: "user", content: displayText, images: currentImages };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setAttachedImages([]);
+    const currentFile = attachedFile;
+    setAttachedFile(null);
 
     sendMessage({ message: msgText, images: currentImages });
     focusInput();
@@ -1591,8 +1632,8 @@ export default function ChatPage() {
             <span className="text-xs text-red-600 dark:text-red-400">Mendengarkan... tekan mic lagi untuk berhenti</span>
           </div>
         )}
-        {attachedImages.length > 0 && (
-          <div className="max-w-2xl mx-auto mb-2 flex flex-wrap gap-2" data-testid="container-image-preview">
+        {(attachedImages.length > 0 || attachedFile || fileUploading) && (
+          <div className="max-w-2xl mx-auto mb-2 flex flex-wrap gap-2 items-center" data-testid="container-attachment-preview">
             {attachedImages.map((img, idx) => (
               <div key={idx} className="relative group" data-testid={`preview-image-${idx}`}>
                 <img src={img} alt={`Preview ${idx + 1}`} className="h-16 w-16 sm:h-20 sm:w-20 object-cover rounded-md border" />
@@ -1605,22 +1646,34 @@ export default function ChatPage() {
                 </button>
               </div>
             ))}
-            {attachedImages.length < 5 && (
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="h-16 w-16 sm:h-20 sm:w-20 rounded-md border border-dashed flex items-center justify-center text-muted-foreground hover-elevate"
-                data-testid="button-add-more-images"
-              >
-                <ImagePlus className="w-5 h-5" />
-              </button>
+            {fileUploading && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-md border bg-muted/50" data-testid="file-uploading">
+                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Memproses file...</span>
+              </div>
+            )}
+            {attachedFile && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-md border bg-muted/50 relative" data-testid="preview-file">
+                {attachedFile.type === "PDF" && <FileText className="w-4 h-4 text-red-500 shrink-0" />}
+                {attachedFile.type === "Word" && <FileText className="w-4 h-4 text-blue-500 shrink-0" />}
+                {(attachedFile.type === "Excel" || attachedFile.type === "CSV") && <FileSpreadsheet className="w-4 h-4 text-green-500 shrink-0" />}
+                {(attachedFile.type === "Text" || attachedFile.type === "Markdown") && <File className="w-4 h-4 text-muted-foreground shrink-0" />}
+                <span className="text-xs truncate max-w-[200px]">{attachedFile.name}</span>
+                <button
+                  onClick={() => setAttachedFile(null)}
+                  className="w-4 h-4 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center text-xs shrink-0"
+                  data-testid="button-remove-file"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
             )}
           </div>
         )}
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
-          multiple
+          accept="image/*,.pdf,.docx,.xlsx,.xls,.txt,.md,.csv"
           className="hidden"
           onChange={handleFileSelect}
           data-testid="input-file-upload"
@@ -1655,12 +1708,12 @@ export default function ChatPage() {
           <div className="max-w-2xl mx-auto flex items-end gap-2">
             <Button
               onClick={() => fileInputRef.current?.click()}
-              disabled={isStreaming || attachedImages.length >= 5}
+              disabled={isStreaming || fileUploading || (attachedImages.length >= 5 && !!attachedFile)}
               size="icon"
               variant="outline"
-              data-testid="button-upload-image"
+              data-testid="button-upload-file"
             >
-              <ImagePlus className="w-4 h-4" />
+              <Paperclip className="w-4 h-4" />
             </Button>
             <Textarea
               ref={inputRef}
@@ -1669,7 +1722,7 @@ export default function ChatPage() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
-              placeholder={isListening ? "Ngomong aja..." : attachedImages.length > 0 ? "Ceritain soal gambarnya..." : "Mau ngobrolin apa nih..."}
+              placeholder={isListening ? "Ngomong aja..." : attachedFile ? `Tulis instruksi untuk ${attachedFile.name}...` : attachedImages.length > 0 ? "Ceritain soal gambarnya..." : "Mau ngobrolin apa nih..."}
               rows={1}
               style={{ fontSize: "16px" }}
               className="flex-1 resize-none min-h-[42px] max-h-[120px]"
@@ -1697,7 +1750,7 @@ export default function ChatPage() {
             )}
             <Button
               onClick={handleSend}
-              disabled={(!input.trim() && attachedImages.length === 0) || isStreaming}
+              disabled={(!input.trim() && attachedImages.length === 0 && !attachedFile) || isStreaming || fileUploading}
               size="icon"
               data-testid="button-send"
             >

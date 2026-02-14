@@ -4,6 +4,9 @@ import { chatRequestSchema, type ChatResponse, type HistoryResponse } from "@sha
 import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
+import multer from "multer";
+import mammoth from "mammoth";
+import * as XLSX from "xlsx";
 import {
   getLastMessages,
   getSummary,
@@ -1672,6 +1675,70 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Seed profile error:", err?.message || err);
       return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+  app.post("/api/upload-file", upload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const { originalname, mimetype, buffer } = req.file;
+      const ext = path.extname(originalname).toLowerCase();
+      let extractedText = "";
+      let fileType = "";
+
+      if (ext === ".pdf" || mimetype === "application/pdf") {
+        fileType = "PDF";
+        const pdfParse = (await import("pdf-parse")).default;
+        const data = await pdfParse(buffer);
+        extractedText = data.text.trim();
+      } else if (ext === ".docx" || mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+        fileType = "Word";
+        const result = await mammoth.extractRawText({ buffer });
+        extractedText = result.value.trim();
+      } else if (ext === ".xlsx" || ext === ".xls" || mimetype === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" || mimetype === "application/vnd.ms-excel") {
+        fileType = "Excel";
+        const workbook = XLSX.read(buffer, { type: "buffer" });
+        const sheets: string[] = [];
+        workbook.SheetNames.forEach((name) => {
+          const sheet = workbook.Sheets[name];
+          const csv = XLSX.utils.sheet_to_csv(sheet);
+          sheets.push(`[Sheet: ${name}]\n${csv}`);
+        });
+        extractedText = sheets.join("\n\n");
+      } else if (ext === ".txt" || ext === ".md" || mimetype === "text/plain" || mimetype === "text/markdown") {
+        fileType = ext === ".md" ? "Markdown" : "Text";
+        extractedText = buffer.toString("utf-8").trim();
+      } else if (ext === ".csv" || mimetype === "text/csv") {
+        fileType = "CSV";
+        extractedText = buffer.toString("utf-8").trim();
+      } else {
+        return res.status(400).json({ message: `Format file tidak didukung: ${ext}. Gunakan PDF, DOCX, XLSX, TXT, MD, atau CSV.` });
+      }
+
+      if (!extractedText) {
+        return res.status(400).json({ message: "File kosong atau tidak bisa dibaca" });
+      }
+
+      const maxChars = 50000;
+      if (extractedText.length > maxChars) {
+        extractedText = extractedText.substring(0, maxChars) + "\n\n[... dipotong karena terlalu panjang]";
+      }
+
+      return res.json({
+        success: true,
+        fileName: originalname,
+        fileType,
+        content: extractedText,
+        charCount: extractedText.length,
+      });
+    } catch (err: any) {
+      console.error("File upload error:", err?.message || err);
+      return res.status(500).json({ message: "Gagal memproses file: " + (err?.message || "Unknown error") });
     }
   });
 
