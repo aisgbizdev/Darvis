@@ -324,6 +324,7 @@ export default function ChatPage() {
   const { data: enrichmentData } = useQuery<ProfileEnrichmentsResponse>({
     queryKey: ["/api/profile-enrichments"],
     refetchInterval: 30000,
+    enabled: isOwner,
   });
 
   const { data: contributorEnrichmentData } = useQuery<ProfileEnrichmentsResponse>({
@@ -647,6 +648,10 @@ export default function ChatPage() {
         setLoginPassword("");
         queryClient.invalidateQueries({ queryKey: ["/api/session-info"] });
         queryClient.invalidateQueries({ queryKey: ["/api/history"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/profile-enrichments"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/contributor-enrichments"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/preferences"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/persona-feedback"] });
       } else {
         setLoginError(data.message || "Password salah");
       }
@@ -878,7 +883,6 @@ export default function ChatPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/history"] });
       queryClient.invalidateQueries({ queryKey: ["/api/preferences"] });
       queryClient.invalidateQueries({ queryKey: ["/api/persona-feedback"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/profile-enrichments"] });
       inputRef.current?.focus();
     },
   });
@@ -1307,63 +1311,42 @@ export default function ChatPage() {
           </div>
           <div className="flex-1 overflow-y-auto px-4 pb-4 sm:pb-3">
             <div className="max-w-2xl mx-auto">
-              {(!prefsData?.preferences || prefsData.preferences.length === 0) ? (
-                <p className="text-xs text-muted-foreground py-2" data-testid="text-prefs-empty">
-                  Belum ada insight yang dipelajari. DARVIS akan mulai belajar setelah beberapa percakapan.
-                </p>
-              ) : (
-                <div className="space-y-3 sm:space-y-2" data-testid="container-prefs-list">
-                  {Object.entries(
-                    prefsData.preferences.reduce<Record<string, typeof prefsData.preferences>>((acc, p) => {
-                      if (!acc[p.category]) acc[p.category] = [];
-                      acc[p.category].push(p);
-                      return acc;
-                    }, {})
-                  ).map(([category, items]) => (
-                    <div key={category} data-testid={`prefs-group-${category}`}>
-                      <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                        {CATEGORY_LABELS[category] || category}
-                      </p>
-                      {items.map((item) => (
-                        <div key={item.id} className="flex items-start gap-2 py-1" data-testid={`pref-item-${item.id}`}>
-                          <div className="w-1.5 h-1.5 rounded-full bg-primary/50 mt-1.5 shrink-0" />
-                          <p className="text-[13px] sm:text-xs leading-relaxed">{item.insight}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {enrichmentData?.enrichments && enrichmentData.enrichments.length > 0 && (
-                <div className="mt-4 pt-3 border-t" data-testid="container-profile-enrichments">
+              {isOwner && (
+                <div className="mb-4" data-testid="container-profile-enrichments">
                   <div className="flex items-center gap-2 mb-2">
                     <Fingerprint className="w-3.5 h-3.5 text-violet-500" />
-                    <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Profil DR dari Percakapan</h4>
+                    <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Profil DR</h4>
                   </div>
-                  {Object.entries(
-                    enrichmentData.enrichments.reduce<Record<string, typeof enrichmentData.enrichments>>((acc, e) => {
-                      if (!acc[e.category]) acc[e.category] = [];
-                      acc[e.category].push(e);
-                      return acc;
-                    }, {})
-                  ).map(([category, items]) => (
-                    <div key={category} className="mb-2" data-testid={`enrichment-group-${category}`}>
-                      <p className="text-[11px] font-semibold text-violet-600 dark:text-violet-400 mb-1">
-                        {ENRICHMENT_LABELS[category] || category}
-                      </p>
-                      {items.map((item) => (
-                        <div key={item.id} className="flex items-start gap-2 py-0.5" data-testid={`enrichment-item-${item.id}`}>
-                          <div className="w-1.5 h-1.5 rounded-full bg-violet-400/60 mt-1.5 shrink-0" />
-                          <p className="text-[13px] sm:text-xs leading-relaxed">{item.fact}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ))}
+                  {(!enrichmentData?.enrichments || enrichmentData.enrichments.length === 0) ? (
+                    <p className="text-xs text-muted-foreground py-1" data-testid="text-enrichment-empty">
+                      Memuat profil DR...
+                    </p>
+                  ) : (
+                    Object.entries(
+                      enrichmentData.enrichments.reduce<Record<string, typeof enrichmentData.enrichments>>((acc, e) => {
+                        if (!acc[e.category]) acc[e.category] = [];
+                        acc[e.category].push(e);
+                        return acc;
+                      }, {})
+                    ).map(([category, items]) => (
+                      <div key={category} className="mb-2" data-testid={`enrichment-group-${category}`}>
+                        <p className="text-[11px] font-semibold text-violet-600 dark:text-violet-400 mb-1">
+                          {ENRICHMENT_LABELS[category] || category}
+                        </p>
+                        {items.map((item) => (
+                          <div key={item.id} className="flex items-start gap-2 py-0.5" data-testid={`enrichment-item-${item.id}`}>
+                            <div className="w-1.5 h-1.5 rounded-full bg-violet-400/60 mt-1.5 shrink-0" />
+                            <p className="text-[13px] sm:text-xs leading-relaxed">{item.fact}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ))
+                  )}
                 </div>
               )}
 
-              <div className="mt-4 pt-3 border-t" data-testid="container-contributor-enrichments">
+              {isOwner && (
+                <div className="mb-4 pt-3 border-t" data-testid="container-contributor-enrichments">
                 <div className="flex items-center gap-2 mb-2">
                   <Users className="w-3.5 h-3.5 text-amber-500" />
                   <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Insight dari Contributor</h4>
@@ -1394,6 +1377,35 @@ export default function ChatPage() {
                   ))
                 )}
               </div>
+              )}
+
+              {prefsData?.preferences && prefsData.preferences.length > 0 && (
+                <div className="mb-4 pt-3 border-t" data-testid="container-prefs-list">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Lightbulb className="w-3.5 h-3.5 text-primary" />
+                    <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Insight dari Percakapan</h4>
+                  </div>
+                  {Object.entries(
+                    prefsData.preferences.reduce<Record<string, typeof prefsData.preferences>>((acc, p) => {
+                      if (!acc[p.category]) acc[p.category] = [];
+                      acc[p.category].push(p);
+                      return acc;
+                    }, {})
+                  ).map(([category, items]) => (
+                    <div key={category} className="mb-2" data-testid={`prefs-group-${category}`}>
+                      <p className="text-[11px] font-semibold text-muted-foreground mb-1">
+                        {CATEGORY_LABELS[category] || category}
+                      </p>
+                      {items.map((item) => (
+                        <div key={item.id} className="flex items-start gap-2 py-0.5" data-testid={`pref-item-${item.id}`}>
+                          <div className="w-1.5 h-1.5 rounded-full bg-primary/50 mt-1.5 shrink-0" />
+                          <p className="text-[13px] sm:text-xs leading-relaxed">{item.insight}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {feedbackData?.feedback && feedbackData.feedback.length > 0 && (
                 <div className="mt-4 pt-3 border-t" data-testid="container-persona-feedback">
