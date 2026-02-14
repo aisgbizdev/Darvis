@@ -2026,7 +2026,12 @@ GAYA NGOBROL:
       apiMessages.push({ role: "system", content: systemContent });
 
       const systemTokenEstimate = Math.ceil(systemContent.length / 3.5);
-      console.log(`[PROMPT] System prompt size: ${systemContent.length} chars (~${systemTokenEstimate} tokens), nodes: [${nodesUsed.join(", ")}], voiceMode: ${voiceMode}`);
+      const msgWordCount = message.trim().split(/\s+/).length;
+      const isShortMessage = msgWordCount <= 15;
+      const complexKeywords = /\b(analisis|evaluasi|strategi|bandingkan|jelaskan|kenapa|mengapa|bagaimana|risiko|risk|guard|hedging|compare|explain|pro.?con|keputusan|decision|dampak|impact|review|breakdown|detail)\b/i;
+      const hasComplexIntent = complexKeywords.test(message);
+      const reasoningEffort = (isShortMessage && !hasComplexIntent) ? "low" : "medium";
+      console.log(`[PROMPT] size: ~${systemTokenEstimate}tok, nodes: [${nodesUsed.join(", ")}], voice: ${voiceMode}, msgWords: ${msgWordCount}, reasoning: ${reasoningEffort}`);
 
       const summary = getSummary(userId);
       if (summary) {
@@ -2090,10 +2095,11 @@ GAYA NGOBROL:
       res.on("close", serverCleanup);
 
       try {
-        const stream = await openai.chat.completions.create({
+        const stream = await (openai.chat.completions.create as any)({
           model: "gpt-5",
           messages: apiMessages,
-          max_completion_tokens: voiceMode ? 2048 : 4096,
+          max_completion_tokens: voiceMode ? 2048 : (isShortMessage ? 2048 : 4096),
+          reasoning_effort: reasoningEffort,
           stream: true,
         }, { signal: abortController.signal });
 
