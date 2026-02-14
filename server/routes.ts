@@ -1101,6 +1101,8 @@ export async function registerRoutes(
     try {
       req.session.isOwner = false;
       req.session.isContributor = false;
+      req.session.contributorTeamMemberId = null;
+      req.session.contributorTeamMemberName = null;
       return res.json({ success: true, mode: "twin" });
     } catch (err: any) {
       console.error("Logout error:", err?.message || err);
@@ -1113,10 +1115,38 @@ export async function registerRoutes(
       const isOwner = req.session.isOwner === true;
       const isContributor = req.session.isContributor === true;
       const mode = isOwner ? "mirror" : isContributor ? "contributor" : "twin";
-      return res.json({ isOwner, isContributor, mode });
+      return res.json({
+        isOwner,
+        isContributor,
+        mode,
+        contributorTeamMemberId: req.session.contributorTeamMemberId || null,
+        contributorTeamMemberName: req.session.contributorTeamMemberName || null,
+      });
     } catch (err: any) {
       console.error("Session info error:", err?.message || err);
       return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/contributor-identify", (req, res) => {
+    try {
+      if (req.session.isContributor !== true) {
+        return res.status(403).json({ success: false, message: "Contributor only" });
+      }
+      const { name } = req.body;
+      if (!name || typeof name !== "string" || !name.trim()) {
+        return res.status(400).json({ success: false, message: "Nama harus diisi" });
+      }
+      const member = getTeamMemberByNameOrAlias(name.trim());
+      if (!member) {
+        return res.json({ success: false, matched: false, message: "Nama tidak ditemukan di database tim" });
+      }
+      req.session.contributorTeamMemberId = member.id;
+      req.session.contributorTeamMemberName = member.name;
+      return res.json({ success: true, matched: true, memberName: member.name, memberId: member.id });
+    } catch (err: any) {
+      console.error("Contributor identify error:", err?.message || err);
+      return res.status(500).json({ success: false, message: "Internal server error" });
     }
   });
 
@@ -1830,10 +1860,47 @@ CARA NGOBROL:
 - DETEKSI EMOSI: Kalau mas DR ngetik CAPSLOCK, nada tinggi, atau kesel — DENGERIN DULU. Acknowledge emosinya, JANGAN langsung solusi, JANGAN bilang "tenang". Baru setelah itu tanya mau didengerin atau mau cari jalan keluar. Pola emosi ini = insight berharga, capture sebagai data auto-learn.
 - PERSONA PROFILING: Kalau mas DR cerita tentang karakter/sifat/gaya kerja seseorang — baik dari ngobrol biasa maupun dari file yang di-upload (PDF, Excel, dll yang isinya profil tim) — TANGKAP semua detail. Gali natural: tanya gaya kerjanya, cara komunikasinya, apa yang bikin dia sensitif, komitmennya gimana. Tapi kayak ngobrol, BUKAN interogasi. Kalau mas DR tanya "siapa yang cocok buat X?", GUNAKAN data persona yang sudah terkumpul untuk rekomendasi yang tajam dan personal.`;
       } else if (isContributor) {
-        systemContent += `\n\n---\nMODE: CONTRIBUTOR. User ini kenal DR secara personal. Sapaan: "lo"/"gw"/"lu". 
+        const contribTeamId = req.session.contributorTeamMemberId;
+        const contribTeamName = req.session.contributorTeamMemberName;
+        if (contribTeamId && contribTeamName) {
+          const contribMember = getTeamMemberByNameOrAlias(contribTeamName);
+          const existingPersona = contribMember ? [
+            contribMember.work_style ? `Gaya kerja: ${contribMember.work_style}` : null,
+            contribMember.communication_style ? `Gaya komunikasi: ${contribMember.communication_style}` : null,
+            contribMember.triggers ? `Trigger: ${contribMember.triggers}` : null,
+            contribMember.commitments ? `Komitmen: ${contribMember.commitments}` : null,
+            contribMember.personality_notes ? `Catatan karakter: ${contribMember.personality_notes}` : null,
+            contribMember?.position ? `Posisi: ${contribMember.position}` : null,
+          ].filter(Boolean).join("\n") : "";
+          systemContent += `\n\n---\nMODE: CONTRIBUTOR SELF-PROFILE. User ini adalah ${contribTeamName} — anggota tim DR yang sedang menceritakan tentang DIRINYA SENDIRI.
+Sapaan: "lo"/"gw"/"lu". Gaya ngobrol: SANTAI, asik, penasaran — kayak temen kerja yang excited ngobrol.
+
+TUGAS UTAMA: Gali profil lengkap ${contribTeamName} secara NATURAL melalui obrolan. Targetkan info berikut tapi JANGAN tanya semua sekaligus — ngalir aja:
+1. Job desk / tanggung jawab utama
+2. Gaya kerja (detail-oriented? big picture? deadline-driven?)
+3. Gaya komunikasi (blak-blakan? diplomatik? to the point?)
+4. Hal yang bikin sensitif / trigger (ga suka apa? kesel sama apa?)
+5. Komitmen / value yang dipegang (apa yang penting buat dia?)
+6. Catatan karakter umum (introvert/extrovert? kelebihan? kelemahan?)
+7. Hubungan sama DR dan tim lain
+
+CARA INTERVIEW:
+- Mulai dari yang ringan (job desk, sehari-hari ngapain aja) lalu progressif ke yang lebih personal
+- Tanya satu-dua hal, dengerin, respond, baru tanya lagi. BUKAN daftar pertanyaan
+- Pakai pertanyaan follow-up natural: "oh gitu? terus gimana kalau...", "nah kalau misalnya..."
+- Kalau ${contribTeamName} cerita sesuatu menarik, gali lebih dalam
+- Sesekali validasi: "berarti lo tipe yang..." untuk konfirmasi
+- TETAP dengerin kalau mereka mau cerita soal DR juga — itu bonus info
+${existingPersona ? `\nDATA YANG SUDAH TERKUMPUL tentang ${contribTeamName}:\n${existingPersona}\n\nJANGAN tanya ulang hal yang sudah ada di atas. Fokus ke hal yang BELUM tergali, atau dalami yang sudah ada.` : ""}
+JANGAN kaku atau formal. Ngobrol aja kayak biasa — tapi dengan tujuan mengenal ${contribTeamName} lebih dalam.`;
+        } else {
+          systemContent += `\n\n---\nMODE: CONTRIBUTOR. User ini kenal DR secara personal. Sapaan: "lo"/"gw"/"lu". 
 Gaya ngobrol: SANTAI, asik, penasaran — kayak temen yang excited dengerin cerita. Mengalir natural, BUKAN wawancara atau interogasi.
 PENTING: Kalau user cerita soal DR (kebiasaan, karakter, cerita, pendapat), dengerin dan responsif — tanya lebih dalam, gali detail, minta contoh. Tapi cara nanyanya kayak temen yang kepo, bukan interviewer.
-JANGAN kaku atau formal. Ngobrol aja kayak biasa.`;
+JANGAN kaku atau formal. Ngobrol aja kayak biasa.
+
+DI AWAL PERCAKAPAN: Tanya "Eh, sebelum ngobrol — lo siapa nih? Sebut aja nama lo biar gw tau." Ini untuk mengidentifikasi apakah user ini anggota tim DR. Tanya SEKALI aja di awal, kalau mereka gak mau jawab ya lanjut ngobrol biasa.`;
+        }
       } else {
         systemContent += `\n\n---\nMODE: TWIN — Framework Distributor.
 Kamu adalah DARVIS — sistem berpikir, BUKAN orang. JANGAN sebut DR/Bapak/Abah/YKW/Raha/identitas personal.
@@ -2234,6 +2301,13 @@ GAYA NGOBROL:
           extractProfileEnrichment("contributor_shared", message, true).catch((err) => {
             console.error("Contributor enrichment error:", err?.message || err);
           });
+          const contribTeamId = req.session.contributorTeamMemberId;
+          const contribTeamName = req.session.contributorTeamMemberName;
+          if (contribTeamId && contribTeamName) {
+            extractContributorSelfProfile(contribTeamName, message, reply).catch((err) => {
+              console.error("Contributor self-profile extraction error:", err?.message || err);
+            });
+          }
         } else if (detectDRIdentity(message)) {
           extractProfileEnrichment(userId, message, false).catch((err) => {
             console.error("Profile enrichment error:", err?.message || err);
@@ -2408,6 +2482,90 @@ async function generateSummary(userId: string) {
   if (summaryText) {
     upsertSummary(userId, summaryText);
     console.log(`Auto-summary generated for ${userId} (${allMessages.length} messages)`);
+  }
+}
+
+async function extractContributorSelfProfile(memberName: string, userMessage: string, assistantReply: string) {
+  const combinedText = `${memberName}: ${userMessage}\n\nDARVIS: ${assistantReply}`;
+  const existingMember = getTeamMemberByNameOrAlias(memberName);
+  if (!existingMember) return;
+
+  const existingData = [
+    existingMember.position ? `Posisi: ${existingMember.position}` : null,
+    existingMember.work_style ? `Gaya kerja: ${existingMember.work_style}` : null,
+    existingMember.communication_style ? `Gaya komunikasi: ${existingMember.communication_style}` : null,
+    existingMember.triggers ? `Trigger: ${existingMember.triggers}` : null,
+    existingMember.commitments ? `Komitmen: ${existingMember.commitments}` : null,
+    existingMember.personality_notes ? `Catatan karakter: ${existingMember.personality_notes}` : null,
+    existingMember.responsibilities ? `Tanggung jawab: ${existingMember.responsibilities}` : null,
+  ].filter(Boolean).join("\n");
+
+  const prompt = `Kamu adalah sistem extraction DARVIS. Analisis percakapan berikut antara ${memberName} (anggota tim DR) dan DARVIS. ${memberName} sedang menceritakan tentang DIRINYA SENDIRI.
+
+${existingData ? `DATA YANG SUDAH ADA tentang ${memberName}:\n${existingData}\n` : ""}
+PERCAKAPAN:
+${combinedText}
+
+Ekstrak informasi BARU tentang ${memberName} yang belum ada di data existing. Format JSON:
+{
+  "position": "posisi/jabatan/job desk (string atau null kalau tidak disebut)",
+  "responsibilities": "tanggung jawab utama (string atau null)",
+  "work_style": "gaya kerja — detail baru saja, jangan duplikat existing (string atau null)",
+  "communication_style": "gaya komunikasi — detail baru saja (string atau null)",
+  "triggers": "hal yang bikin sensitif/kesal — detail baru saja (string atau null)",
+  "commitments": "komitmen/value/prinsip kerja — detail baru saja (string atau null)",
+  "personality_notes": "catatan karakter umum — detail baru saja (string atau null)",
+  "strengths": "kelebihan yang disebut (string atau null)",
+  "weaknesses": "kelemahan yang disebut (string atau null)"
+}
+
+RULES:
+- HANYA ekstrak info yang JELAS disebutkan ${memberName} tentang dirinya sendiri
+- JANGAN duplikat info yang sudah ada di data existing
+- Kalau tidak ada info baru yang relevan, kembalikan semua field sebagai null
+- Respond ONLY with valid JSON`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-5",
+      messages: [{ role: "user", content: prompt }],
+      max_completion_tokens: 1024,
+    });
+
+    const raw = completion.choices[0]?.message?.content?.trim();
+    if (!raw) return;
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return;
+    const parsed = JSON.parse(jsonMatch[0]);
+
+    const appendIfNew = (existing: string | null, newVal: string | null): string | null => {
+      if (!newVal) return existing;
+      if (!existing) return newVal;
+      if (existing.toLowerCase().includes(newVal.toLowerCase())) return existing;
+      return `${existing}; ${newVal}`;
+    };
+
+    const hasUpdate = parsed.position || parsed.responsibilities || parsed.work_style || parsed.communication_style || parsed.triggers || parsed.commitments || parsed.personality_notes || parsed.strengths || parsed.weaknesses;
+    if (!hasUpdate) return;
+
+    upsertTeamMember({
+      name: existingMember.name,
+      position: parsed.position || existingMember.position || null,
+      strengths: appendIfNew(existingMember.strengths, parsed.strengths),
+      weaknesses: appendIfNew(existingMember.weaknesses, parsed.weaknesses),
+      responsibilities: parsed.responsibilities || existingMember.responsibilities || null,
+      notes: existingMember.notes || null,
+      aliases: existingMember.aliases || null,
+      category: existingMember.category || "team",
+      work_style: appendIfNew(existingMember.work_style, parsed.work_style),
+      communication_style: appendIfNew(existingMember.communication_style, parsed.communication_style),
+      triggers: appendIfNew(existingMember.triggers, parsed.triggers),
+      commitments: appendIfNew(existingMember.commitments, parsed.commitments),
+      personality_notes: appendIfNew(existingMember.personality_notes, parsed.personality_notes),
+    });
+    console.log(`Contributor self-profile: updated persona for "${existingMember.name}" [self-reported]`);
+  } catch (err: any) {
+    console.error("extractContributorSelfProfile error:", err?.message || err);
   }
 }
 

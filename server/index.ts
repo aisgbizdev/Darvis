@@ -21,6 +21,8 @@ declare module "express-session" {
     userId: string;
     isOwner: boolean;
     isContributor: boolean;
+    contributorTeamMemberId: number | null;
+    contributorTeamMemberName: string | null;
   }
 }
 
