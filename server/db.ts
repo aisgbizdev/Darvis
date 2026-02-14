@@ -443,6 +443,11 @@ db.exec(`
 
 try { db.exec(`ALTER TABLE team_members ADD COLUMN aliases TEXT`); } catch(e) {}
 try { db.exec(`ALTER TABLE team_members ADD COLUMN category TEXT NOT NULL DEFAULT 'team'`); } catch(e) {}
+try { db.exec(`ALTER TABLE team_members ADD COLUMN work_style TEXT`); } catch(e) {}
+try { db.exec(`ALTER TABLE team_members ADD COLUMN communication_style TEXT`); } catch(e) {}
+try { db.exec(`ALTER TABLE team_members ADD COLUMN triggers TEXT`); } catch(e) {}
+try { db.exec(`ALTER TABLE team_members ADD COLUMN commitments TEXT`); } catch(e) {}
+try { db.exec(`ALTER TABLE team_members ADD COLUMN personality_notes TEXT`); } catch(e) {}
 
 export interface TeamMember {
   id: number;
@@ -455,6 +460,11 @@ export interface TeamMember {
   notes: string | null;
   aliases: string | null;
   category: string;
+  work_style: string | null;
+  communication_style: string | null;
+  triggers: string | null;
+  commitments: string | null;
+  personality_notes: string | null;
   status: string;
   created_at: string;
   updated_at: string;
