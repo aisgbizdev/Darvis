@@ -2022,16 +2022,21 @@ GAYA NGOBROL:
 - INGAT: setiap kata = waktu tunggu user. Lebih singkat = lebih baik.`;
       }
 
+      const msgWordCount = message.trim().split(/\s+/).length;
+      const detailKeywords = /\b(detail|rinci|breakdown|jelaskan\s+lengkap|jelasin\s+dong|jelasin\s+detail|analisis\s+mendalam|analisis\s+lengkap|uraikan|elaborate|pecah(kan)?|deep\s*dive|step\s*by\s*step|lengkap(in)?|bedah)\b/i;
+      const wantsDetail = detailKeywords.test(message);
+
+      if (!wantsDetail) {
+        systemContent += `\n\n---\n⚡ REMINDER FINAL (PATUHI!):\nJawab 1-3 kalimat. Tek-tok. Ngobrol, bukan esai. TITIK. Lebih singkat = lebih baik. JANGAN bikin paragraf panjang atau bullet list kecuali user minta "detail".`;
+      }
+
       const apiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
       apiMessages.push({ role: "system", content: systemContent });
 
       const systemTokenEstimate = Math.ceil(systemContent.length / 3.5);
-      const msgWordCount = message.trim().split(/\s+/).length;
-      const isShortMessage = msgWordCount <= 15;
-      const complexKeywords = /\b(analisis|evaluasi|strategi|bandingkan|jelaskan|kenapa|mengapa|bagaimana|risiko|risk|guard|hedging|compare|explain|pro.?con|keputusan|decision|dampak|impact|review|breakdown|detail)\b/i;
-      const hasComplexIntent = complexKeywords.test(message);
-      const reasoningEffort = (isShortMessage && !hasComplexIntent) ? "low" : "medium";
-      console.log(`[PROMPT] size: ~${systemTokenEstimate}tok, nodes: [${nodesUsed.join(", ")}], voice: ${voiceMode}, msgWords: ${msgWordCount}, reasoning: ${reasoningEffort}`);
+      const reasoningEffort = wantsDetail ? "medium" : "low";
+      const maxTokens = wantsDetail ? 2048 : (voiceMode ? 512 : 1024);
+      console.log(`[PROMPT] size: ~${systemTokenEstimate}tok, nodes: [${nodesUsed.join(", ")}], voice: ${voiceMode}, msgWords: ${msgWordCount}, reasoning: ${reasoningEffort}, maxTok: ${maxTokens}`);
 
       const summary = getSummary(userId);
       if (summary) {
@@ -2098,7 +2103,7 @@ GAYA NGOBROL:
         const stream = await (openai.chat.completions.create as any)({
           model: "gpt-5",
           messages: apiMessages,
-          max_completion_tokens: voiceMode ? 2048 : (isShortMessage ? 2048 : 4096),
+          max_completion_tokens: maxTokens,
           reasoning_effort: reasoningEffort,
           stream: true,
         }, { signal: abortController.signal });
