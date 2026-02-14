@@ -19,6 +19,9 @@ import {
   Loader2,
   AlertTriangle,
   Clock,
+  ChevronDown,
+  ChevronUp,
+  Brain,
 } from "lucide-react";
 
 interface TeamMember {
@@ -32,6 +35,11 @@ interface TeamMember {
   notes: string | null;
   aliases: string | null;
   category: string;
+  work_style: string | null;
+  communication_style: string | null;
+  triggers: string | null;
+  commitments: string | null;
+  personality_notes: string | null;
   status: string;
 }
 
@@ -130,9 +138,19 @@ function SummaryRow({ summary, isLoading }: { summary?: DashboardSummary; isLoad
   );
 }
 
+function PersonaDetail({ label, value, testId }: { label: string; value: string; testId: string }) {
+  return (
+    <div className="flex flex-col gap-0.5" data-testid={testId}>
+      <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">{label}</span>
+      <span className="text-[10px] leading-relaxed">{value}</span>
+    </div>
+  );
+}
+
 function TeamTab() {
   const [showAdd, setShowAdd] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
   const [addName, setAddName] = useState("");
   const [addPosition, setAddPosition] = useState("");
   const [editName, setEditName] = useState("");
@@ -225,40 +243,67 @@ function TeamTab() {
               </div>
             </div>
           ) : (
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1 flex-wrap">
-                  <p className="text-xs font-medium truncate" data-testid={`text-team-name-${m.id}`}>{m.name}</p>
-                  {m.category && m.category !== "team" && (
-                    <Badge variant="outline" data-testid={`badge-team-category-${m.id}`}>
-                      {m.category === "direksi" ? "Direksi" : m.category === "family" ? "Keluarga" : m.category === "management" ? "Mgmt" : m.category}
-                    </Badge>
+            <div>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <p className="text-xs font-medium truncate" data-testid={`text-team-name-${m.id}`}>{m.name}</p>
+                    {m.category && m.category !== "team" && (
+                      <Badge variant="outline" data-testid={`badge-team-category-${m.id}`}>
+                        {m.category === "direksi" ? "Direksi" : m.category === "family" ? "Keluarga" : m.category === "management" ? "Mgmt" : m.category}
+                      </Badge>
+                    )}
+                    {(m.work_style || m.communication_style || m.triggers || m.commitments || m.personality_notes) && (
+                      <Brain className="w-3 h-3 text-violet-500" data-testid={`icon-persona-${m.id}`} />
+                    )}
+                  </div>
+                  {m.position && <p className="text-[10px] text-muted-foreground truncate" data-testid={`text-team-position-${m.id}`}>{m.position}</p>}
+                  {m.aliases && <p className="text-[9px] text-muted-foreground/70 truncate italic" data-testid={`text-team-aliases-${m.id}`}>alias: {m.aliases}</p>}
+                </div>
+                <div className="flex gap-0.5 shrink-0">
+                  {(m.work_style || m.communication_style || m.triggers || m.commitments || m.personality_notes || m.strengths || m.weaknesses) && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setExpandedId(expandedId === m.id ? null : m.id)}
+                      data-testid={`button-expand-team-${m.id}`}
+                    >
+                      {expandedId === m.id ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => { setEditId(m.id); setEditName(m.name); setEditPosition(m.position || ""); }}
+                    data-testid={`button-edit-team-${m.id}`}
+                  >
+                    <Edit2 className="w-3 h-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => deleteMutation.mutate(m.id)}
+                    disabled={deleteMutation.isPending}
+                    data-testid={`button-delete-team-${m.id}`}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
+              </div>
+              {expandedId === m.id && (
+                <div className="mt-2 pt-2 border-t flex flex-col gap-1.5" data-testid={`panel-persona-${m.id}`}>
+                  {m.strengths && <PersonaDetail label="Kelebihan" value={m.strengths} testId={`text-strengths-${m.id}`} />}
+                  {m.weaknesses && <PersonaDetail label="Kelemahan" value={m.weaknesses} testId={`text-weaknesses-${m.id}`} />}
+                  {m.work_style && <PersonaDetail label="Gaya Kerja" value={m.work_style} testId={`text-work-style-${m.id}`} />}
+                  {m.communication_style && <PersonaDetail label="Gaya Komunikasi" value={m.communication_style} testId={`text-comm-style-${m.id}`} />}
+                  {m.triggers && <PersonaDetail label="Trigger / Sensitif" value={m.triggers} testId={`text-triggers-${m.id}`} />}
+                  {m.commitments && <PersonaDetail label="Komitmen" value={m.commitments} testId={`text-commitments-${m.id}`} />}
+                  {m.personality_notes && <PersonaDetail label="Catatan Karakter" value={m.personality_notes} testId={`text-personality-${m.id}`} />}
+                  {!m.work_style && !m.communication_style && !m.triggers && !m.commitments && !m.personality_notes && (
+                    <p className="text-[9px] text-muted-foreground italic" data-testid={`text-no-persona-${m.id}`}>Belum ada profil persona — ceritakan tentang orang ini ke DARVIS untuk mengisi otomatis</p>
                   )}
                 </div>
-                {m.position && <p className="text-[10px] text-muted-foreground truncate" data-testid={`text-team-position-${m.id}`}>{m.position}</p>}
-                {m.aliases && <p className="text-[9px] text-muted-foreground/70 truncate italic" data-testid={`text-team-aliases-${m.id}`}>alias: {m.aliases}</p>}
-              </div>
-              <div className="flex gap-0.5 shrink-0">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  onClick={() => { setEditId(m.id); setEditName(m.name); setEditPosition(m.position || ""); }}
-                  data-testid={`button-edit-team-${m.id}`}
-                >
-                  <Edit2 className="w-3 h-3" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  onClick={() => deleteMutation.mutate(m.id)}
-                  disabled={deleteMutation.isPending}
-                  data-testid={`button-delete-team-${m.id}`}
-                >
-                  <Trash2 className="w-3 h-3" />
-                </Button>
-              </div>
+              )}
             </div>
           )}
         </Card>

@@ -683,6 +683,27 @@ function detectProjectIntent(message: string): boolean {
   return patterns.some((p) => p.test(lower));
 }
 
+function detectPersonaIntent(message: string): boolean {
+  const lower = message.toLowerCase();
+  const patterns = [
+    /\b(karakter|personality|sifat|watak|temperamen)\b/,
+    /\b(gaya\s+(kerja|komunikasi|ngomong|manage|leadership))\b/,
+    /\b(trigger|sensitif|emosi(onal)?|marah|kesel|tersinggung)\b/,
+    /\b(komitmen|commitment|janji|tanggung\s+jawab\s+personal)\b/,
+    /\b(delegasi|assign|kasih\s+(ke|tugas)|siapa\s+yang\s+(cocok|bisa|tepat))\b/,
+    /\b(cocok(nya)?|tepat(nya)?|pas(nya)?)\s+(siapa|untuk|buat)\b/,
+    /\b(kelebihan|kelemahan|strengths?|weakness)\b/,
+    /\b(cara\s+(dia|mereka|si)\s+(kerja|ngomong|handle))\b/,
+    /\b(work\s*style|communication\s*style)\b/,
+    /\b(profil|profile)\s+(tim|team|anggota|orang)\b/,
+    /\b(gimana\s+(si|orangnya))\b/,
+    /\b(orangnya\s+(gimana|kayak\s+apa))\b/,
+    /\b(tipe\s+orang)\b/,
+    /\b(handle|tangani|approach)\s+.*(si|dia|mereka)\b/,
+  ];
+  return patterns.some((p) => p.test(lower));
+}
+
 function detectActionItemIntent(message: string): boolean {
   const lower = message.toLowerCase();
   const patterns = [
@@ -703,6 +724,7 @@ function buildSecretaryContext(message: string, isOwner: boolean = false): strin
   const isMeeting = detectMeetingIntent(message);
   const isProject = detectProjectIntent(message);
   const isAction = detectActionItemIntent(message);
+  const isPersona = detectPersonaIntent(message);
 
   if (isTeam || isOwner) {
     const members = getTeamMembers("active");
@@ -715,6 +737,7 @@ function buildSecretaryContext(message: string, isOwner: boolean = false): strin
         grouped[cat].push(m);
       }
       const catLabels: Record<string, string> = { team: "Tim BD", direksi: "Direksi 5 PT", management: "Management/Atasan", family: "Keluarga", external: "Eksternal" };
+      const showPersonaDetail = isPersona || isTeam;
       for (const [cat, catMembers] of Object.entries(grouped)) {
         context += `\n**${catLabels[cat] || cat}:**\n`;
         for (const m of catMembers) {
@@ -726,11 +749,26 @@ function buildSecretaryContext(message: string, isOwner: boolean = false): strin
           if (m.weaknesses) details.push(`Kelemahan: ${m.weaknesses}`);
           if (m.responsibilities) details.push(`Tanggung jawab: ${m.responsibilities}`);
           if (m.active_projects) details.push(`Project aktif: ${m.active_projects}`);
+          if (showPersonaDetail) {
+            if (m.work_style) details.push(`Gaya kerja: ${m.work_style}`);
+            if (m.communication_style) details.push(`Gaya komunikasi: ${m.communication_style}`);
+            if (m.triggers) details.push(`Trigger/sensitif: ${m.triggers}`);
+            if (m.commitments) details.push(`Komitmen: ${m.commitments}`);
+            if (m.personality_notes) details.push(`Karakter: ${m.personality_notes}`);
+          }
           if (details.length > 0) context += ` | ${details.join("; ")}`;
           context += `\n`;
         }
       }
       context += `\nKalau DR sebut nama yang TIDAK ada di daftar ini, TANYA siapa orang itu. Kalau sudah ada (termasuk alias), langsung lanjut natural.\n`;
+
+      if (isPersona) {
+        const membersWithPersona = members.filter(m => m.work_style || m.communication_style || m.triggers || m.commitments || m.personality_notes);
+        const membersWithoutPersona = members.filter(m => !m.work_style && !m.communication_style && !m.triggers && !m.commitments && !m.personality_notes);
+        context += `\nPERSONA PROFILING AKTIF — ${membersWithPersona.length} orang sudah punya profil persona, ${membersWithoutPersona.length} belum.`;
+        context += `\nKalau DR ngomongin karakter/sifat/gaya seseorang, TANGKAP dan simpan. Boleh gali lebih dalam secara natural: "Gimana cara dia handle tekanan?" / "Dia tipe yang harus di-push atau self-driven?" — tapi JANGAN interogasi, ngobrol aja natural.`;
+        context += `\nKalau DR tanya rekomendasi delegasi/assignment, GUNAKAN data persona yang ada untuk kasih saran yang tajam dan personal.`;
+      }
     }
   }
 
@@ -1789,7 +1827,8 @@ CARA NGOBROL:
 - TETAP framework-first. Kamu thinking companion yang KENAL DR, bukan yes-man.
 - Kamu PUNYA sistem sekretaris built-in — meeting, action items, project, reminder SEMUA otomatis ter-capture dari percakapan dan notifikasi muncul di app ini. JANGAN PERNAH suruh user pakai Google Assistant, Siri, atau Calendar external. Bilang aja "Udah gw catet" atau "Gw remind lo nanti".
 - ADAPTIVE TONE: Ikutin cara mas DR manggil lo. "bro" → maskulin santai, "sis" → feminin lembut, "say/beib/sayang" → hangat caring, "partner" → profesional setara. Yang berubah = vibe/cara bicara, yang TETAP = kedalaman analisis dan keberanian challenge.
-- DETEKSI EMOSI: Kalau mas DR ngetik CAPSLOCK, nada tinggi, atau kesel — DENGERIN DULU. Acknowledge emosinya, JANGAN langsung solusi, JANGAN bilang "tenang". Baru setelah itu tanya mau didengerin atau mau cari jalan keluar. Pola emosi ini = insight berharga, capture sebagai data auto-learn.`;
+- DETEKSI EMOSI: Kalau mas DR ngetik CAPSLOCK, nada tinggi, atau kesel — DENGERIN DULU. Acknowledge emosinya, JANGAN langsung solusi, JANGAN bilang "tenang". Baru setelah itu tanya mau didengerin atau mau cari jalan keluar. Pola emosi ini = insight berharga, capture sebagai data auto-learn.
+- PERSONA PROFILING: Kalau mas DR cerita tentang karakter/sifat/gaya kerja seseorang — baik dari ngobrol biasa maupun dari file yang di-upload (PDF, Excel, dll yang isinya profil tim) — TANGKAP semua detail. Gali natural: tanya gaya kerjanya, cara komunikasinya, apa yang bikin dia sensitif, komitmennya gimana. Tapi kayak ngobrol, BUKAN interogasi. Kalau mas DR tanya "siapa yang cocok buat X?", GUNAKAN data persona yang sudah terkumpul untuk rekomendasi yang tajam dan personal.`;
       } else if (isContributor) {
         systemContent += `\n\n---\nMODE: CONTRIBUTOR. User ini kenal DR secara personal. Sapaan: "lo"/"gw"/"lu". 
 Gaya ngobrol: SANTAI, asik, penasaran — kayak temen yang excited dengerin cerita. Mengalir natural, BUKAN wawancara atau interogasi.
@@ -2394,7 +2433,7 @@ ${combinedText}
 Ekstrak dalam format JSON dengan struktur:
 {
   "team_members": [
-    { "name": "string", "position": "string|null", "strengths": "string|null", "weaknesses": "string|null", "responsibilities": "string|null", "notes": "string|null", "aliases": "comma-separated aliases|null", "category": "team|direksi|family|external|management" }
+    { "name": "string", "position": "string|null", "strengths": "string|null", "weaknesses": "string|null", "responsibilities": "string|null", "notes": "string|null", "aliases": "comma-separated aliases|null", "category": "team|direksi|family|external|management", "work_style": "string|null", "communication_style": "string|null", "triggers": "string|null", "commitments": "string|null", "personality_notes": "string|null" }
   ],
   "meetings": [
     { "title": "string", "date_time": "YYYY-MM-DD HH:MM|null", "participants": "comma-separated names|null", "agenda": "string|null" }
@@ -2418,7 +2457,13 @@ RULES:
 - Untuk action items: tangkap instruksi, delegasi, tugas, follow-up yang disebut. Parsing deadline dari bahasa natural.
 - Untuk projects: tangkap project baru atau update status project existing. Parsing deadline dari bahasa natural.
 - follow_ups: tangkap hal-hal yang user bilang "nanti gw..." atau "besok mau..." sebagai reminder. Parsing deadline_hint ke tanggal konkret.
-- PENTING: Jika user menyebut nama orang dan memberikan info tentang orang tersebut (siapa dia, posisi, relasi), SELALU ekstrak ke team_members. Cek daftar existing — jika nama/alias cocok, UPDATE. Jika baru, buat entri baru.
+- PENTING: Jika user menyebut nama orang dan memberikan info tentang orang tersebut (siapa dia, posisi, relasi, karakter, gaya kerja, dll), SELALU ekstrak ke team_members. Cek daftar existing — jika nama/alias cocok, UPDATE. Jika baru, buat entri baru.
+- PERSONA FIELDS (tangkap kalau ada info relevan):
+  - work_style: cara kerja orang ini (misal: "detail-oriented, perfeksionis", "big picture thinker", "cepat tapi sering miss detail")
+  - communication_style: cara komunikasi (misal: "to the point", "suka ngomong panjang", "pasif-agresif", "blak-blakan")
+  - triggers: hal yang bikin dia sensitif/emosi/tersinggung (misal: "ga suka dikritik di depan umum", "kesel kalau deadline mepet")
+  - commitments: komitmen/janji/tanggung jawab personal (misal: "committed ke deadline", "sering telat submit", "reliable kalau sudah janji")
+  - personality_notes: catatan karakter umum (misal: "introvert tapi kuat kalau udah ngomong", "loyal banget ke tim")
 - Kategori orang: "team" (bawahan/tim BD), "direksi" (direktur PT), "management" (atasan/peers), "family" (keluarga), "external" (orang luar)
 - Jika tidak ada data untuk suatu kategori, kembalikan array kosong
 - Tanggal hari ini: ${new Date().toISOString().split('T')[0]} (${new Date().toLocaleDateString('id-ID', { weekday: 'long' })})
@@ -2460,6 +2505,12 @@ Respond ONLY with valid JSON, no other text.`;
         if (member.name && typeof member.name === "string") {
           const existingByAlias = getTeamMemberByNameOrAlias(member.name);
           if (existingByAlias) {
+            const appendIfNew = (existing: string | null, newVal: string | null): string | null => {
+              if (!newVal) return existing;
+              if (!existing) return newVal;
+              if (existing.toLowerCase().includes(newVal.toLowerCase())) return existing;
+              return `${existing}; ${newVal}`;
+            };
             upsertTeamMember({
               name: existingByAlias.name,
               position: member.position || existingByAlias.position || null,
@@ -2469,8 +2520,14 @@ Respond ONLY with valid JSON, no other text.`;
               notes: member.notes || existingByAlias.notes || null,
               aliases: member.aliases || existingByAlias.aliases || null,
               category: member.category || existingByAlias.category || "external",
+              work_style: appendIfNew(existingByAlias.work_style, member.work_style),
+              communication_style: appendIfNew(existingByAlias.communication_style, member.communication_style),
+              triggers: appendIfNew(existingByAlias.triggers, member.triggers),
+              commitments: appendIfNew(existingByAlias.commitments, member.commitments),
+              personality_notes: appendIfNew(existingByAlias.personality_notes, member.personality_notes),
             });
-            console.log(`Secretary: updated existing member "${existingByAlias.name}" (matched from "${member.name}")`);
+            const personaUpdated = member.work_style || member.communication_style || member.triggers || member.commitments || member.personality_notes;
+            console.log(`Secretary: updated existing member "${existingByAlias.name}" (matched from "${member.name}")${personaUpdated ? " [+persona]" : ""}`);
           } else {
             upsertTeamMember({
               name: member.name,
@@ -2481,8 +2538,14 @@ Respond ONLY with valid JSON, no other text.`;
               notes: member.notes || null,
               aliases: member.aliases || null,
               category: member.category || "external",
+              work_style: member.work_style || null,
+              communication_style: member.communication_style || null,
+              triggers: member.triggers || null,
+              commitments: member.commitments || null,
+              personality_notes: member.personality_notes || null,
             });
-            console.log(`Secretary: added new person "${member.name}" [${member.category || "external"}]`);
+            const personaAdded = member.work_style || member.communication_style || member.triggers || member.commitments || member.personality_notes;
+            console.log(`Secretary: added new person "${member.name}" [${member.category || "external"}]${personaAdded ? " [+persona]" : ""}`);
           }
         }
       }

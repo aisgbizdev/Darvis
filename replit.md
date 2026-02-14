@@ -61,7 +61,8 @@ DARVIS employs a modern web architecture with a React-based frontend, an Express
         - Auto-extraction from conversation: GPT-powered extraction of team profiles (with aliases/category), meetings, action items, projects from natural chat in Mirror Mode.
         - Dynamic context injection: `NODE_TEAM` (always in Mirror), `NODE_MEETING`, `NODE_PROJECTS` injected based on intent detection.
         - Proactive notifications: meeting reminders (30min before), overdue alerts, project deadlines (3 days), daily briefing (6-9am), DARVIS insights (max 2-3x/day).
-        - Secretary Dashboard: accessible via header icon (owner-only), 4 tabs (Tim, Meeting, Action Items, Projects) with full CRUD, inline editing, status toggling. Shows category badges and aliases.
+        - Secretary Dashboard: accessible via header icon (owner-only), 4 tabs (Tim, Meeting, Action Items, Projects) with full CRUD, inline editing, status toggling. Shows category badges and aliases. Team cards have expandable persona detail panel (brain icon indicator).
+        - **Team Persona Profiling (v2.0)**: DARVIS auto-extracts persona data (work_style, communication_style, triggers, commitments, personality_notes) from natural conversation and file uploads in Mirror Mode. Persona data injected into context when discussing delegation, team assignments, or character topics. Database columns added to `team_members` table. `appendIfNew()` logic prevents duplicate persona entries.
         - Notification Center: bell icon with unread badge, grouped notifications by type.
         - All secretary features owner-only protected.
     - **Key Files**: `server/proactive.ts` (proactive system), `client/src/components/secretary-dashboard.tsx`, `client/src/components/notification-center.tsx`.

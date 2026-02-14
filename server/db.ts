@@ -511,6 +511,11 @@ export function upsertTeamMember(data: {
   notes?: string | null;
   aliases?: string | null;
   category?: string;
+  work_style?: string | null;
+  communication_style?: string | null;
+  triggers?: string | null;
+  commitments?: string | null;
+  personality_notes?: string | null;
 }): number {
   const existing = getTeamMemberByNameOrAlias(data.name);
   if (existing) {
@@ -524,6 +529,11 @@ export function upsertTeamMember(data: {
     if (data.notes !== undefined) { updates.push("notes = ?"); values.push(data.notes); }
     if (data.aliases !== undefined) { updates.push("aliases = ?"); values.push(data.aliases); }
     if (data.category !== undefined) { updates.push("category = ?"); values.push(data.category); }
+    if (data.work_style !== undefined) { updates.push("work_style = ?"); values.push(data.work_style); }
+    if (data.communication_style !== undefined) { updates.push("communication_style = ?"); values.push(data.communication_style); }
+    if (data.triggers !== undefined) { updates.push("triggers = ?"); values.push(data.triggers); }
+    if (data.commitments !== undefined) { updates.push("commitments = ?"); values.push(data.commitments); }
+    if (data.personality_notes !== undefined) { updates.push("personality_notes = ?"); values.push(data.personality_notes); }
     if (updates.length > 0) {
       updates.push("updated_at = datetime('now')");
       values.push(existing.id);
@@ -532,9 +542,9 @@ export function upsertTeamMember(data: {
     return existing.id;
   } else {
     const result = db.prepare(`
-      INSERT INTO team_members (name, position, strengths, weaknesses, responsibilities, active_projects, notes, aliases, category)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(data.name, data.position || null, data.strengths || null, data.weaknesses || null, data.responsibilities || null, data.active_projects || null, data.notes || null, data.aliases || null, data.category || 'team');
+      INSERT INTO team_members (name, position, strengths, weaknesses, responsibilities, active_projects, notes, aliases, category, work_style, communication_style, triggers, commitments, personality_notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(data.name, data.position || null, data.strengths || null, data.weaknesses || null, data.responsibilities || null, data.active_projects || null, data.notes || null, data.aliases || null, data.category || 'team', data.work_style || null, data.communication_style || null, data.triggers || null, data.commitments || null, data.personality_notes || null);
     return result.lastInsertRowid as number;
   }
 }
