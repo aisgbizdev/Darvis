@@ -1,5 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
+import Database from "better-sqlite3";
+import SqliteStoreFactory from "better-sqlite3-session-store";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -40,8 +42,18 @@ if (isProduction && !process.env.SESSION_SECRET) {
   process.exit(1);
 }
 
+const SqliteStore = SqliteStoreFactory(session);
+const sessionDb = new Database("darvis.db");
+
 app.use(
   session({
+    store: new SqliteStore({
+      client: sessionDb,
+      expired: {
+        clear: true,
+        intervalMs: 900000,
+      },
+    }),
     secret: process.env.SESSION_SECRET || "darvis-fallback-secret",
     resave: false,
     saveUninitialized: true,
