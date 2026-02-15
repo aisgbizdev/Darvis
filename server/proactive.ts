@@ -17,6 +17,53 @@ import {
 } from "./db";
 import { sendPushToAll } from "./push";
 
+function getWIBParts(): { year: number; month: number; day: number; hour: number; minute: number; second: number; dayOfWeek: number } {
+  const now = new Date();
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hour12: false,
+  });
+  const parts = fmt.formatToParts(now);
+  const get = (type: string) => parseInt(parts.find(p => p.type === type)?.value || "0", 10);
+  const year = get("year");
+  const month = get("month");
+  const day = get("day");
+  const hour = get("hour") === 24 ? 0 : get("hour");
+  const minute = get("minute");
+  const second = get("second");
+  const wibDate = new Date(year, month - 1, day);
+  const dayOfWeek = wibDate.getDay();
+  return { year, month, day, hour, minute, second, dayOfWeek };
+}
+
+function getWIBDate(): Date {
+  const p = getWIBParts();
+  return new Date(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+}
+
+function getWIBDateString(): string {
+  const p = getWIBParts();
+  return `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
+}
+
+function getWIBTimeString(): string {
+  const p = getWIBParts();
+  return `${String(p.hour).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}`;
+}
+
+function getWIBHour(): number {
+  return getWIBParts().hour;
+}
+
+function getWIBDayName(): string {
+  const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+  return days[getWIBParts().dayOfWeek];
+}
+
+export { getWIBDate, getWIBDateString, getWIBTimeString, getWIBHour, getWIBDayName, parseWIBTimestamp };
+
 function createNotification(data: { type: string; title: string; message: string; data?: string | null }): number {
   const id = dbCreateNotification(data);
   sendPushToAll(data.title, data.message).catch(() => {});
@@ -26,7 +73,7 @@ function createNotification(data: { type: string; title: string; message: string
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 function todayKey(): string {
-  return new Date().toISOString().split("T")[0];
+  return getWIBDateString();
 }
 
 function getInsightCountToday(): number {
@@ -49,16 +96,27 @@ function markNotifSent(type: string) {
   setSetting(key, "1");
 }
 
+function parseWIBTimestamp(dateTimeStr: string): Date {
+  const cleaned = dateTimeStr.replace(/\s+/g, " ").trim();
+  const match = cleaned.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
+  if (match) {
+    const [, y, mo, d, h, mi] = match;
+    const wibDate = new Date(Date.UTC(+y, +mo - 1, +d, +h - 7, +mi));
+    return wibDate;
+  }
+  return new Date(dateTimeStr);
+}
+
 export function checkMeetingReminders() {
   try {
     const upcoming = getUpcomingMeetings();
-    const now = new Date();
+    const now = Date.now();
 
     for (const meeting of upcoming) {
       if (!meeting.date_time) continue;
 
-      const meetingTime = new Date(meeting.date_time);
-      const diffMinutes = (meetingTime.getTime() - now.getTime()) / (1000 * 60);
+      const meetingTime = parseWIBTimestamp(meeting.date_time);
+      const diffMinutes = (meetingTime.getTime() - now) / (1000 * 60);
 
       if (diffMinutes < -60) {
         try {
@@ -79,7 +137,7 @@ export function checkMeetingReminders() {
           data: JSON.stringify({ meeting_id: meeting.id }),
         });
         setSetting(reminderKey, "1");
-        console.log(`Proactive: meeting reminder sent for "${meeting.title}"`);
+        console.log(`Proactive: meeting reminder sent for "${meeting.title}" (WIB)`);
       }
     }
   } catch (err: any) {
@@ -119,13 +177,14 @@ export function checkProjectDeadlines() {
     if (hasSentNotifToday("project_deadline")) return;
 
     const projects = getProjects("active");
-    const now = new Date();
+    const todayStr = getWIBDateString();
+    const todayMs = new Date(todayStr + "T00:00:00Z").getTime();
     const warnings: string[] = [];
 
     for (const p of projects) {
       if (!p.deadline) continue;
-      const deadline = new Date(p.deadline);
-      const daysLeft = Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      const deadlineMs = new Date(p.deadline + "T00:00:00Z").getTime();
+      const daysLeft = Math.ceil((deadlineMs - todayMs) / (1000 * 60 * 60 * 24));
       if (daysLeft > 0 && daysLeft <= 3) {
         warnings.push(`${p.name} — deadline ${daysLeft} hari lagi${p.progress ? ` (progress: ${p.progress}%)` : ""}`);
       }
@@ -149,7 +208,7 @@ export function generateDailyBriefing() {
   try {
     if (hasSentNotifToday("daily_briefing")) return;
 
-    const hour = new Date().getHours();
+    const hour = getWIBHour();
     if (hour < 6 || hour > 9) return;
 
     const todayMeetings = getTodayMeetings();
@@ -193,7 +252,7 @@ export async function generateProactiveInsight() {
     const insightCount = getInsightCountToday();
     if (insightCount >= 3) return;
 
-    const hour = new Date().getHours();
+    const hour = getWIBHour();
     if (hour < 8 || hour > 20) return;
 
     const minInterval = getSetting(`last_insight_time`);
@@ -263,11 +322,28 @@ Respond ONLY with the insight text, nothing else.`;
   }
 }
 
+function aggressiveCleanup() {
+  try {
+    cleanupOldNotifications(24);
+
+    db.prepare(`
+      DELETE FROM notifications WHERE type = 'meeting_reminder' AND created_at < datetime('now', '-1 hours')
+    `).run();
+
+    db.prepare(`
+      DELETE FROM notifications WHERE read = 1 AND type NOT IN ('darvis_insight') AND created_at < datetime('now', '-2 hours')
+    `).run();
+  } catch (err: any) {
+    console.error("Aggressive cleanup failed:", err?.message || err);
+  }
+}
+
 export function startProactiveSystem() {
-  console.log("Proactive system started");
+  console.log("Proactive system started (WIB timezone)");
 
   setInterval(() => {
     checkMeetingReminders();
+    aggressiveCleanup();
   }, 5 * 60 * 1000);
 
   setInterval(() => {
@@ -283,12 +359,8 @@ export function startProactiveSystem() {
     generateProactiveInsight();
   }, 60 * 60 * 1000);
 
-  setInterval(() => {
-    cleanupOldNotifications(24);
-  }, 60 * 60 * 1000);
-
   setTimeout(() => {
-    cleanupOldNotifications(24);
+    aggressiveCleanup();
     checkMeetingReminders();
     checkOverdueItems();
     checkProjectDeadlines();

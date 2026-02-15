@@ -2882,6 +2882,11 @@ RULES:
 async function extractSecretaryData(userMessage: string, assistantReply: string) {
   const combinedText = `User: ${userMessage}\n\nDARVIS: ${assistantReply}`;
 
+  const { getWIBDateString, getWIBTimeString, getWIBDayName } = await import("./proactive");
+  const wibDateStr = getWIBDateString();
+  const wibTimeStr = getWIBTimeString();
+  const wibDayName = getWIBDayName();
+
   const teamMembers = getTeamMembers();
   const existingProjects = getProjects();
   const pendingActions = getPendingActionItems();
@@ -2934,19 +2939,29 @@ RULES:
   - personality_notes: catatan karakter umum (misal: "introvert tapi kuat kalau udah ngomong", "loyal banget ke tim")
 - Kategori orang: "team" (bawahan/tim BD), "direksi" (direktur PT), "management" (atasan/peers), "family" (keluarga), "external" (orang luar)
 - Jika tidak ada data untuk suatu kategori, kembalikan array kosong
-- Tanggal hari ini: ${new Date().toISOString().split('T')[0]} (${new Date().toLocaleDateString('id-ID', { weekday: 'long' })})
-- Waktu sekarang: ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false })} WIB
+- Tanggal hari ini (WIB): ${wibDateStr} (${wibDayName})
+- Waktu sekarang (WIB): ${wibTimeStr}
+- Timezone: WIB (UTC+7) — SEMUA tanggal/waktu harus dalam WIB
 - Maksimal 5 item per kategori
 
-PARSING TANGGAL RELATIF (WAJIB):
-- "hari ini" → ${new Date().toISOString().split('T')[0]}
+RULE KRITIS — REMINDER & PENGINGAT (WAJIB JADI MEETING):
+- Jika user bilang "ingetin gue jam X", "ingetin gw", "remind me", "jangan lupa jam X", "catat jam X", "nanti jam X harus Y", "mau ke X jam Y", "ada Y jam X", "appointment jam X", "jadwal jam X", "schedule jam X" → WAJIB masuk ke "meetings" (BUKAN follow_ups atau action_items)
+- Semua pengingat/reminder/schedule yang punya waktu spesifik = MEETING
+- Title = deskripsi aktivitas (misal: "Ke oma", "Call client", "Gym", dsb)
+- date_time = tanggal + jam dalam format YYYY-MM-DD HH:MM (WIB)
+- Jika user cuma sebut jam tanpa tanggal, asumsikan HARI INI (${wibDateStr})
+- Jika user bilang "besok jam X", hitung tanggal besok dari ${wibDateStr}
+- JANGAN pernah masukkan reminder/pengingat ke follow_ups. Follow_ups HANYA untuk hal yang TIDAK punya waktu spesifik.
+
+PARSING TANGGAL RELATIF (WAJIB — basis WIB):
+- "hari ini" → ${wibDateStr}
 - "besok" / "besuk" → tanggal hari ini + 1 hari
 - "lusa" → tanggal hari ini + 2 hari
 - "2 hari lagi" / "3 hari lagi" → tanggal hari ini + N hari
 - "minggu depan" → tanggal hari ini + 7 hari
 - "minggu ini" → tetap minggu ini, perkirakan hari kerja terdekat
 - "bulan depan" → tanggal 1 bulan berikutnya
-- "Senin depan" / "Jumat ini" → hitung tanggal pastinya dari hari ini
+- "Senin depan" / "Jumat ini" → hitung tanggal pastinya dari hari ini (${wibDateStr}, ${wibDayName})
 - "jam 10" / "jam 17.00" → format HH:MM
 - "sore" → 15:00, "pagi" → 09:00, "siang" → 12:00, "malam" → 20:00
 - SELALU konversi ke tanggal absolut (YYYY-MM-DD), JANGAN biarkan tetap relatif
@@ -3022,13 +3037,39 @@ Respond ONLY with valid JSON, no other text.`;
     if (Array.isArray(parsed.meetings) && parsed.meetings.length > 0) {
       for (const meeting of parsed.meetings.slice(0, 5)) {
         if (meeting.title && typeof meeting.title === "string") {
-          createMeeting({
+          const meetingId = createMeeting({
             title: meeting.title,
             date_time: meeting.date_time || null,
             participants: meeting.participants || null,
             agenda: meeting.agenda || null,
           });
-          console.log(`Secretary: created meeting "${meeting.title}"`);
+          console.log(`Secretary: created meeting "${meeting.title}" (id=${meetingId})`);
+
+          if (meeting.date_time) {
+            try {
+              const { parseWIBTimestamp } = await import("./proactive");
+              const meetingTime = parseWIBTimestamp(meeting.date_time);
+              const nowMs = Date.now();
+              const diffMin = (meetingTime.getTime() - nowMs) / (1000 * 60);
+
+              if (diffMin > 0 && diffMin <= 35) {
+                const reminderMsg = `${meeting.title}${meeting.participants ? ` — Peserta: ${meeting.participants}` : ""}`;
+                createNotification({
+                  type: "meeting_reminder",
+                  title: `Meeting dalam ${Math.round(diffMin)} menit`,
+                  message: reminderMsg,
+                  data: JSON.stringify({ meeting_id: meetingId }),
+                });
+                const { setSetting } = await import("./db");
+                setSetting(`meeting_reminder_${meetingId}_${meeting.date_time}`, "1");
+                console.log(`Secretary: immediate reminder for "${meeting.title}" (${Math.round(diffMin)}min away)`);
+              } else if (diffMin > 35) {
+                console.log(`Secretary: meeting "${meeting.title}" scheduled at ${meeting.date_time} WIB — proactive reminder will fire 30min before`);
+              }
+            } catch (reminderErr: any) {
+              console.error(`Secretary: failed to process reminder for "${meeting.title}":`, reminderErr?.message);
+            }
+          }
         }
       }
     }
