@@ -1330,7 +1330,10 @@ export default function ChatPage() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => clearMutation.mutate()}
+            onClick={() => {
+              const label = activeRoomId ? "Hapus semua pesan di room ini?" : "Hapus pesan di lobby? (Pesan di room tetap aman)";
+              if (confirm(label)) clearMutation.mutate();
+            }}
             disabled={messages.length === 0 || clearMutation.isPending}
             data-testid="button-clear-chat"
           >

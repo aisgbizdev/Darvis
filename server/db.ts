@@ -266,11 +266,15 @@ export async function upsertSummary(userId: string, summary: string) {
   );
 }
 
-export async function clearHistory(userId: string) {
+export async function clearHistory(userId: string, lobbyOnly = false) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    await client.query(`DELETE FROM conversations WHERE user_id = $1`, [userId]);
+    if (lobbyOnly) {
+      await client.query(`DELETE FROM conversations WHERE user_id = $1 AND (room_id IS NULL)`, [userId]);
+    } else {
+      await client.query(`DELETE FROM conversations WHERE user_id = $1`, [userId]);
+    }
     await client.query(`DELETE FROM summaries WHERE user_id = $1`, [userId]);
     await client.query('COMMIT');
   } catch (e) {

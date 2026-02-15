@@ -1673,7 +1673,7 @@ export async function registerRoutes(
       if (roomId) {
         await clearRoomHistory(roomId);
       } else {
-        await clearHistory(userId);
+        await clearHistory(userId, true);
       }
       await clearPreferences(userId);
       await clearPersonaFeedback(userId);

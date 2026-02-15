@@ -329,7 +329,9 @@ export function ConversationSidebar({ activeRoomId, onSelectRoom, onClose }: Con
                         size="icon"
                         onClick={(e) => {
                           e.stopPropagation();
-                          deleteMutation.mutate(room.id);
+                          if (confirm(`Hapus room "${room.title}"? Semua pesan di room ini akan hilang.`)) {
+                            deleteMutation.mutate(room.id);
+                          }
                         }}
                         data-testid={`button-delete-room-${room.id}`}
                       >
