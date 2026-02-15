@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Trash2, Loader2, Lightbulb, X, Shield, Heart, Sparkles, User, Fingerprint, Mic, MicOff, ImagePlus, Lock, LogOut, Download, KeyRound, Users, Settings, Check, LayoutDashboard, Phone, PhoneOff, Volume2, FileText, FileSpreadsheet, File, Paperclip, PanelLeft } from "lucide-react";
+import { Send, Trash2, Loader2, Lightbulb, X, Shield, Heart, Sparkles, User, Fingerprint, Mic, MicOff, ImagePlus, Lock, LogOut, Download, KeyRound, Users, Settings, Check, LayoutDashboard, Phone, PhoneOff, Volume2, FileText, FileSpreadsheet, File, Paperclip, PanelLeft, Menu, Bell } from "lucide-react";
 import { NotificationCenter } from "@/components/notification-center";
 import { SecretaryDashboard } from "@/components/secretary-dashboard";
 import { ConversationSidebar } from "@/components/conversation-sidebar";
@@ -230,11 +230,13 @@ export default function ChatPage() {
   const [pwConfirm, setPwConfirm] = useState("");
   const [pwError, setPwError] = useState("");
   const [pwSuccess, setPwSuccess] = useState("");
+  const [showOwnerMenu, setShowOwnerMenu] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const downloadMenuRef = useRef<HTMLDivElement>(null);
+  const ownerMenuRef = useRef<HTMLDivElement>(null);
   const voiceSelectorRef = useRef<HTMLDivElement>(null);
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -299,6 +301,17 @@ export default function ChatPage() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showVoiceSelector]);
+
+  useEffect(() => {
+    if (!showOwnerMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (ownerMenuRef.current && !ownerMenuRef.current.contains(e.target as Node)) {
+        setShowOwnerMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showOwnerMenu]);
 
   const { data: sessionData } = useQuery<{ isOwner: boolean; isContributor: boolean; mode: string; contributorTeamMemberId: number | null; contributorTeamMemberName: string | null }>({
     queryKey: ["/api/session-info"],
@@ -1227,36 +1240,7 @@ export default function ChatPage() {
           )}
           {isOwner && (
             <>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowPrefs(!showPrefs)}
-                className={`toggle-elevate ${showPrefs ? "toggle-elevated" : ""}`}
-                data-testid="button-show-preferences"
-              >
-                <Lightbulb className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => { setShowPasswordPanel(!showPasswordPanel); setPwError(""); setPwSuccess(""); setPwCurrent(""); setPwNew(""); setPwConfirm(""); }}
-                className={`toggle-elevate ${showPasswordPanel ? "toggle-elevated" : ""}`}
-                data-testid="button-show-settings"
-                title="Pengaturan"
-              >
-                <Settings className="w-4 h-4" />
-              </Button>
               <NotificationCenter />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowDashboard(!showDashboard)}
-                className={`toggle-elevate ${showDashboard ? "toggle-elevated" : ""}`}
-                data-testid="button-show-dashboard"
-                title="Dashboard Secretary"
-              >
-                <LayoutDashboard className="w-4 h-4" />
-              </Button>
               <Button
                 variant="ghost"
                 size="icon"
@@ -1267,6 +1251,46 @@ export default function ChatPage() {
               >
                 <PanelLeft className="w-4 h-4" />
               </Button>
+              <div className="relative" ref={ownerMenuRef}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowOwnerMenu(!showOwnerMenu)}
+                  className={`toggle-elevate ${showOwnerMenu ? "toggle-elevated" : ""}`}
+                  data-testid="button-owner-menu"
+                  title="Menu Owner"
+                >
+                  <Menu className="w-4 h-4" />
+                </Button>
+                {showOwnerMenu && (
+                  <div className="absolute right-0 top-full mt-1 w-48 rounded-md border bg-card shadow-md z-50 py-1" data-testid="menu-owner">
+                    <button
+                      onClick={() => { setShowPrefs(!showPrefs); setShowOwnerMenu(false); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover-elevate"
+                      data-testid="button-show-preferences"
+                    >
+                      <Lightbulb className="w-3.5 h-3.5" />
+                      Preferensi
+                    </button>
+                    <button
+                      onClick={() => { setShowDashboard(!showDashboard); setShowOwnerMenu(false); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover-elevate"
+                      data-testid="button-show-dashboard"
+                    >
+                      <LayoutDashboard className="w-3.5 h-3.5" />
+                      Dashboard Secretary
+                    </button>
+                    <button
+                      onClick={() => { setShowPasswordPanel(!showPasswordPanel); setPwError(""); setPwSuccess(""); setPwCurrent(""); setPwNew(""); setPwConfirm(""); setShowOwnerMenu(false); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover-elevate"
+                      data-testid="button-show-settings"
+                    >
+                      <Settings className="w-3.5 h-3.5" />
+                      Pengaturan
+                    </button>
+                  </div>
+                )}
+              </div>
             </>
           )}
           <div className="relative" ref={downloadMenuRef}>
