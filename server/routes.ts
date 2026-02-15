@@ -2555,7 +2555,11 @@ GAYA NGOBROL:
         console.log(`Post-chat: isOwner=${isOwner}, isContributor=${isContributor}, msgLen=${message.length}, replyLen=${reply.length}`);
         if (isOwner) {
           console.log("Post-chat: calling extractSecretaryData NOW");
-          extractSecretaryData(message, reply).then(() => {
+          const recentMsgs = activeRoomId
+            ? await getLastMessagesForRoom(activeRoomId, 6)
+            : await getLastMessages(userId, 6);
+          const recentHistory = recentMsgs.map((m: any) => ({ role: m.role as string, content: m.content as string }));
+          extractSecretaryData(message, reply, recentHistory).then(() => {
             console.log("Post-chat: extractSecretaryData completed successfully");
           }).catch((err) => {
             console.error("Secretary extraction error:", err?.message || err);
@@ -2915,9 +2919,17 @@ RULES:
   }
 }
 
-async function extractSecretaryData(userMessage: string, assistantReply: string) {
+async function extractSecretaryData(userMessage: string, assistantReply: string, recentHistory: Array<{role: string, content: string}> = []) {
   console.log(`extractSecretaryData: ENTERED — userMsg=${userMessage.substring(0, 80)}...`);
-  const combinedText = `User: ${userMessage}\n\nDARVIS: ${assistantReply}`;
+  let combinedText = "";
+  if (recentHistory.length > 0) {
+    const filtered = recentHistory.slice(-6).filter(m => m.content !== userMessage && m.content !== assistantReply);
+    if (filtered.length > 0) {
+      const historyLines = filtered.map(m => `${m.role === "user" ? "User" : "DARVIS"}: ${m.content}`);
+      combinedText = historyLines.join("\n\n") + "\n\n";
+    }
+  }
+  combinedText += `User: ${userMessage}\n\nDARVIS: ${assistantReply}`;
 
   const wibDateStr = getWIBDateString();
   const wibTimeStr = getWIBTimeString();
@@ -2980,14 +2992,29 @@ RULES:
 - Timezone: WIB (UTC+7) — SEMUA tanggal/waktu harus dalam WIB
 - Maksimal 5 item per kategori
 
-RULE KRITIS — REMINDER & PENGINGAT (WAJIB JADI MEETING):
-- Jika user bilang "ingetin gue jam X", "ingetin gw", "remind me", "jangan lupa jam X", "catat jam X", "nanti jam X harus Y", "mau ke X jam Y", "ada Y jam X", "appointment jam X", "jadwal jam X", "schedule jam X" → WAJIB masuk ke "meetings" (BUKAN follow_ups atau action_items)
-- Semua pengingat/reminder/schedule yang punya waktu spesifik = MEETING
-- Title = deskripsi aktivitas (misal: "Ke oma", "Call client", "Gym", dsb)
-- date_time = tanggal + jam dalam format YYYY-MM-DD HH:MM (WIB)
-- Jika user cuma sebut jam tanpa tanggal, asumsikan HARI INI (${wibDateStr})
-- Jika user bilang "besok jam X", hitung tanggal besok dari ${wibDateStr}
-- JANGAN pernah masukkan reminder/pengingat ke follow_ups. Follow_ups HANYA untuk hal yang TIDAK punya waktu spesifik.
+RULE KRITIS — KEYWORD TRIGGER (WAJIB SIMPAN DATA):
+Kata-kata berikut adalah TRIGGER WAJIB untuk menyimpan data. Jika user menyebut salah satu dari kata ini, WAJIB ekstrak ke meetings atau action_items:
+KEYWORD LIST: catet, catat, ingetin, ingatkan, meeting, jadwal, agenda, noted, note, tulis, tuliskan, remind, schedule, booking, book, reservasi, daftarkan, masukin, tambahin, simpen, save, jangan lupa, tolong ingetin, mau ke, ada acara, appointment
+
+ATURAN PENYIMPANAN:
+1. Ada TANGGAL dan/atau JAM → WAJIB masuk "meetings"
+   - Title = deskripsi aktivitas (misal: "Cek fisik", "Meeting client", "Ke oma")
+   - date_time = YYYY-MM-DD HH:MM (WIB)
+   - Jika ada tanggal TAPI TIDAK ada jam → default jam 09:00
+   - Jika ada jam TAPI TIDAK ada tanggal → asumsikan HARI INI (${wibDateStr})
+2. TIDAK ada tanggal/jam spesifik → masuk "action_items"
+   - Title = deskripsi tugas/catatan
+   - priority = "medium" (default)
+   - deadline = null
+3. JANGAN pernah masukkan ke follow_ups jika ada keyword trigger di atas. Follow_ups HANYA untuk kalimat pasif tanpa keyword trigger yang TIDAK punya waktu spesifik.
+
+CONTOH MAPPING:
+- "catet donk tgl 25 feb ada cek fisik" → meetings: { title: "Cek fisik", date_time: "2026-02-25 09:00" }
+- "ingetin gw jam 3 sore meeting" → meetings: { title: "Meeting", date_time: "${wibDateStr} 15:00" }
+- "catat: besok harus follow up client" → meetings: { title: "Follow up client", date_time: besok 09:00 }
+- "noted, tambahin ke list" → action_items: { title: deskripsi dari konteks }
+- "simpen info ini" → action_items: { title: deskripsi dari konteks }
+- "jangan lupa beli kado" → action_items: { title: "Beli kado" }
 
 PARSING TANGGAL RELATIF (WAJIB — basis WIB):
 - "hari ini" → ${wibDateStr}
@@ -3098,17 +3125,36 @@ Respond ONLY with valid JSON, no other text.`;
     if (Array.isArray(parsed.meetings) && parsed.meetings.length > 0) {
       for (const meeting of parsed.meetings.slice(0, 5)) {
         if (meeting.title && typeof meeting.title === "string") {
+          let dateTime = meeting.date_time || null;
+          if (dateTime) {
+            const dtStr = dateTime.trim();
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dtStr)) {
+              dateTime = `${dtStr} 09:00`;
+              console.log(`Secretary: date-only detected for "${meeting.title}", defaulting to 09:00 WIB`);
+            }
+          }
           const meetingId = await createMeeting({
             title: meeting.title,
-            date_time: meeting.date_time || null,
+            date_time: dateTime,
             participants: meeting.participants || null,
             agenda: meeting.agenda || null,
           });
           console.log(`Secretary: created meeting "${meeting.title}" (id=${meetingId})`);
 
-          if (meeting.date_time) {
+          try {
+            const scheduleInfo = dateTime ? ` — Jadwal: ${dateTime} WIB` : "";
+            await createNotification({
+              type: "meeting_reminder",
+              title: `Jadwal baru dicatat`,
+              message: `${meeting.title}${meeting.participants ? ` — Peserta: ${meeting.participants}` : ""}${scheduleInfo}`,
+              data: JSON.stringify({ meeting_id: meetingId }),
+            });
+            console.log(`Secretary: notification created for "${meeting.title}"`);
+          } catch (_notifErr) {}
+
+          if (dateTime) {
             try {
-              const meetingTime = parseWIBTimestamp(meeting.date_time);
+              const meetingTime = parseWIBTimestamp(dateTime);
               const nowMs = Date.now();
               const diffMin = (meetingTime.getTime() - nowMs) / (1000 * 60);
 
@@ -3120,10 +3166,10 @@ Respond ONLY with valid JSON, no other text.`;
                   message: reminderMsg,
                   data: JSON.stringify({ meeting_id: meetingId }),
                 });
-                await setSetting(`meeting_reminder_${meetingId}_${meeting.date_time}`, "1");
+                await setSetting(`meeting_reminder_${meetingId}_${dateTime}`, "1");
                 console.log(`Secretary: immediate reminder for "${meeting.title}" (${Math.round(diffMin)}min away)`);
               } else if (diffMin > 35) {
-                console.log(`Secretary: meeting "${meeting.title}" scheduled at ${meeting.date_time} WIB — proactive reminder will fire 30min before`);
+                console.log(`Secretary: meeting "${meeting.title}" scheduled at ${dateTime} WIB — proactive reminder will fire 30min before`);
               }
             } catch (reminderErr: any) {
               console.error(`Secretary: failed to process reminder for "${meeting.title}":`, reminderErr?.message);
@@ -3136,7 +3182,7 @@ Respond ONLY with valid JSON, no other text.`;
     if (Array.isArray(parsed.action_items) && parsed.action_items.length > 0) {
       for (const item of parsed.action_items.slice(0, 5)) {
         if (item.title && typeof item.title === "string") {
-          await createActionItem({
+          const actionId = await createActionItem({
             title: item.title,
             assignee: item.assignee || null,
             deadline: item.deadline || null,
@@ -3144,7 +3190,16 @@ Respond ONLY with valid JSON, no other text.`;
             source: "conversation",
             notes: item.notes || null,
           });
-          console.log(`Secretary: created action item "${item.title}"`);
+          console.log(`Secretary: created action item "${item.title}" (id=${actionId})`);
+          try {
+            const deadlineInfo = item.deadline ? ` — Deadline: ${item.deadline}` : "";
+            await createNotification({
+              type: "action_item",
+              title: `Action item baru dicatat`,
+              message: `${item.title}${item.assignee ? ` → ${item.assignee}` : ""}${deadlineInfo}`,
+              data: JSON.stringify({ action_item_id: actionId }),
+            });
+          } catch (_notifErr) {}
         }
       }
     }
