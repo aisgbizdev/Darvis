@@ -832,11 +832,13 @@ export default function ChatPage() {
                 setActiveRoomId(ra.roomId);
                 setShowRoomSidebar(true);
                 queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
+                queryClient.invalidateQueries({ queryKey: ["/api/history"] });
                 toast({ title: `Room baru: "${ra.roomTitle}"`, description: ra.reason || "Topik baru terdeteksi" });
               } else if (ra.action === "move_to_existing" && ra.roomId) {
                 setActiveRoomId(ra.roomId);
                 setShowRoomSidebar(true);
                 queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
+                queryClient.invalidateQueries({ queryKey: ["/api/history"] });
                 toast({ title: `Dilanjutkan di "${ra.roomTitle}"`, description: ra.reason || "Topik nyambung dengan room yang ada" });
               }
             }

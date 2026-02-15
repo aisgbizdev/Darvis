@@ -2461,10 +2461,12 @@ GAYA NGOBROL:
               const newRoomId = await createChatRoom(userId, roomActionResult.roomTitle || "Obrolan Baru");
               activeRoomId = newRoomId;
               roomActionResult.roomId = newRoomId;
-              console.log(`Auto-created room #${newRoomId}: "${roomActionResult.roomTitle}"`);
+              await moveMessagesToRoom(userId, newRoomId);
+              console.log(`Auto-created room #${newRoomId}: "${roomActionResult.roomTitle}" — lobby messages moved`);
             } else if (roomActionResult.action === "move_to_existing" && roomActionResult.roomId) {
               activeRoomId = roomActionResult.roomId;
-              console.log(`Auto-moving to room #${roomActionResult.roomId}: "${roomActionResult.roomTitle}"`);
+              await moveMessagesToRoom(userId, roomActionResult.roomId);
+              console.log(`Auto-moving to room #${roomActionResult.roomId}: "${roomActionResult.roomTitle}" — lobby messages moved`);
             }
           }
 
@@ -2488,10 +2490,12 @@ GAYA NGOBROL:
               const newRoomId = await createChatRoom(userId, roomActionResult.roomTitle || "Obrolan Baru");
               activeRoomId = newRoomId;
               roomActionResult.roomId = newRoomId;
-              console.log(`Auto-created room #${newRoomId}: "${roomActionResult.roomTitle}"`);
+              await moveMessagesToRoom(userId, newRoomId);
+              console.log(`Auto-created room #${newRoomId}: "${roomActionResult.roomTitle}" — lobby messages moved`);
             } else if (roomActionResult.action === "move_to_existing" && roomActionResult.roomId) {
               activeRoomId = roomActionResult.roomId;
-              console.log(`Auto-moving to room #${roomActionResult.roomId}: "${roomActionResult.roomTitle}"`);
+              await moveMessagesToRoom(userId, roomActionResult.roomId);
+              console.log(`Auto-moving to room #${roomActionResult.roomId}: "${roomActionResult.roomTitle}" — lobby messages moved`);
             }
           }
 
