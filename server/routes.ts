@@ -81,6 +81,7 @@ import {
   mergeRooms,
 } from "./db";
 import { getVapidPublicKey, sendPushToAll } from "./push";
+import { getWIBDateString, getWIBTimeString, getWIBDayName, parseWIBTimestamp } from "./proactive";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -2882,7 +2883,6 @@ RULES:
 async function extractSecretaryData(userMessage: string, assistantReply: string) {
   const combinedText = `User: ${userMessage}\n\nDARVIS: ${assistantReply}`;
 
-  const { getWIBDateString, getWIBTimeString, getWIBDayName } = await import("./proactive");
   const wibDateStr = getWIBDateString();
   const wibTimeStr = getWIBTimeString();
   const wibDayName = getWIBDayName();
@@ -2976,12 +2976,25 @@ Respond ONLY with valid JSON, no other text.`;
     });
 
     const raw = completion.choices[0]?.message?.content?.trim();
-    if (!raw) return;
+    if (!raw) {
+      console.log("Secretary extraction: GPT returned empty response");
+      return;
+    }
 
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return;
+    if (!jsonMatch) {
+      console.log("Secretary extraction: no JSON found in response:", raw.slice(0, 200));
+      return;
+    }
 
     const parsed = JSON.parse(jsonMatch[0]);
+    console.log("Secretary extraction: parsed —", JSON.stringify({
+      team_members: parsed.team_members?.length || 0,
+      meetings: parsed.meetings?.length || 0,
+      action_items: parsed.action_items?.length || 0,
+      projects: parsed.projects?.length || 0,
+      follow_ups: parsed.follow_ups?.length || 0,
+    }));
 
     if (Array.isArray(parsed.team_members) && parsed.team_members.length > 0) {
       for (const member of parsed.team_members.slice(0, 5)) {
@@ -3047,7 +3060,6 @@ Respond ONLY with valid JSON, no other text.`;
 
           if (meeting.date_time) {
             try {
-              const { parseWIBTimestamp } = await import("./proactive");
               const meetingTime = parseWIBTimestamp(meeting.date_time);
               const nowMs = Date.now();
               const diffMin = (meetingTime.getTime() - nowMs) / (1000 * 60);
@@ -3060,7 +3072,6 @@ Respond ONLY with valid JSON, no other text.`;
                   message: reminderMsg,
                   data: JSON.stringify({ meeting_id: meetingId }),
                 });
-                const { setSetting } = await import("./db");
                 setSetting(`meeting_reminder_${meetingId}_${meeting.date_time}`, "1");
                 console.log(`Secretary: immediate reminder for "${meeting.title}" (${Math.round(diffMin)}min away)`);
               } else if (diffMin > 35) {
