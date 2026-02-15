@@ -1790,6 +1790,13 @@ export async function registerRoutes(
           { name: "Lisa", position: "Istri DR", responsibilities: null, notes: "SEED_FROM_PROFILE", category: "family" },
           { name: "Vito", position: "Anak sulung DR", responsibilities: null, notes: "SEED_FROM_PROFILE", category: "family" },
           { name: "Veeta", position: "Anak bungsu DR", responsibilities: null, notes: "SEED_FROM_PROFILE", category: "family" },
+          { name: "Aulia", position: "Sekretaris PT EWF", responsibilities: "Administrasi dan kesekretariatan PT Equityworld Futures", notes: "SEED_FROM_PROFILE", category: "team" },
+          { name: "Jaki", position: "Sekretaris PT BPF", responsibilities: "Administrasi dan kesekretariatan PT Bestprofit Futures", notes: "SEED_FROM_PROFILE", category: "team" },
+          { name: "Cangka", position: "Sekretaris PT SGB", responsibilities: "Administrasi dan kesekretariatan PT Solid Gold Berjangka", notes: "SEED_FROM_PROFILE", category: "team" },
+          { name: "Brigita", position: "Sekretaris PT KPF", responsibilities: "Administrasi dan kesekretariatan PT Kontakperkasa Futures", notes: "SEED_FROM_PROFILE", category: "team" },
+          { name: "Erni", position: "Sekretaris PT RFB", responsibilities: "Administrasi dan kesekretariatan PT Rifan Financindo Berjangka", notes: "SEED_FROM_PROFILE", category: "team" },
+          { name: "Telly", position: "Sekretaris Umum", responsibilities: "Kesekretariatan umum lintas PT / Solid Group", notes: "SEED_FROM_PROFILE", category: "team" },
+          { name: "Nata", position: "General Affairs (GA) Umum", responsibilities: "General affairs, urusan umum lintas PT / Solid Group", notes: "SEED_FROM_PROFILE", category: "team" },
         ];
         for (const member of allPeople) {
           upsertTeamMember(member);
