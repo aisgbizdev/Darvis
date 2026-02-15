@@ -1008,4 +1008,101 @@ export function seedDRProfileForUser(userId: string) {
   console.log(`Profile DR seeded for ${userId}: ${seedItems.length} facts`);
 }
 
+// ==================== CHAT ROOMS ====================
+db.exec(`
+  CREATE TABLE IF NOT EXISTS chat_rooms (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT 'Obrolan Baru',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_chat_rooms_session_id ON chat_rooms(session_id);
+  CREATE INDEX IF NOT EXISTS idx_chat_rooms_updated_at ON chat_rooms(updated_at);
+`);
+
+try { db.exec(`ALTER TABLE conversations ADD COLUMN room_id INTEGER`); } catch(_e) {}
+db.exec(`CREATE INDEX IF NOT EXISTS idx_conversations_room_id ON conversations(room_id)`);
+
+export interface ChatRoom {
+  id: number;
+  session_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export function getChatRooms(sessionId: string): ChatRoom[] {
+  return db.prepare(`SELECT * FROM chat_rooms WHERE session_id = ? ORDER BY updated_at DESC`).all(sessionId) as ChatRoom[];
+}
+
+export function getChatRoomById(id: number): ChatRoom | undefined {
+  return db.prepare(`SELECT * FROM chat_rooms WHERE id = ?`).get(id) as ChatRoom | undefined;
+}
+
+export function createChatRoom(sessionId: string, title?: string): number {
+  const result = db.prepare(`INSERT INTO chat_rooms (session_id, title) VALUES (?, ?)`).run(sessionId, title || "Obrolan Baru");
+  return result.lastInsertRowid as number;
+}
+
+export function renameChatRoom(id: number, title: string) {
+  db.prepare(`UPDATE chat_rooms SET title = ?, updated_at = datetime('now') WHERE id = ?`).run(title, id);
+}
+
+export function deleteChatRoom(id: number) {
+  const transaction = db.transaction(() => {
+    db.prepare(`DELETE FROM conversations WHERE room_id = ?`).run(id);
+    db.prepare(`DELETE FROM chat_rooms WHERE id = ?`).run(id);
+  });
+  transaction();
+}
+
+export function touchChatRoom(id: number) {
+  db.prepare(`UPDATE chat_rooms SET updated_at = datetime('now') WHERE id = ?`).run(id);
+}
+
+export function getLastMessagesForRoom(roomId: number, limit: number = 10) {
+  const stmt = db.prepare(`
+    SELECT role, content FROM conversations
+    WHERE room_id = ?
+    ORDER BY id DESC
+    LIMIT ?
+  `);
+  const rows = stmt.all(roomId, limit) as { role: string; content: string }[];
+  return rows.reverse();
+}
+
+export function getAllMessagesForRoom(roomId: number) {
+  const stmt = db.prepare(`
+    SELECT role, content FROM conversations
+    WHERE room_id = ?
+    ORDER BY id ASC
+  `);
+  return stmt.all(roomId) as { role: string; content: string }[];
+}
+
+export function saveMessageToRoom(roomId: number, userId: string, role: "user" | "assistant", content: string) {
+  db.prepare(`INSERT INTO conversations (user_id, role, content, room_id) VALUES (?, ?, ?, ?)`).run(userId, role, content, roomId);
+  touchChatRoom(roomId);
+}
+
+export function getMessageCountForRoom(roomId: number): number {
+  const row = db.prepare(`SELECT COUNT(*) as count FROM conversations WHERE room_id = ?`).get(roomId) as { count: number };
+  return row.count;
+}
+
+export function clearRoomHistory(roomId: number) {
+  db.prepare(`DELETE FROM conversations WHERE room_id = ?`).run(roomId);
+}
+
+export function getRoomSummary(roomId: number): string | null {
+  const key = `room_summary_${roomId}`;
+  return getSetting(key);
+}
+
+export function setRoomSummary(roomId: number, summary: string) {
+  const key = `room_summary_${roomId}`;
+  setSetting(key, summary);
+}
+
 export default db;

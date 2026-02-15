@@ -5,9 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Send, Trash2, Loader2, Lightbulb, X, Shield, Heart, Sparkles, User, Fingerprint, Mic, MicOff, ImagePlus, Lock, LogOut, Download, KeyRound, Users, Settings, Check, LayoutDashboard, Phone, PhoneOff, Volume2, FileText, FileSpreadsheet, File, Paperclip } from "lucide-react";
+import { Send, Trash2, Loader2, Lightbulb, X, Shield, Heart, Sparkles, User, Fingerprint, Mic, MicOff, ImagePlus, Lock, LogOut, Download, KeyRound, Users, Settings, Check, LayoutDashboard, Phone, PhoneOff, Volume2, FileText, FileSpreadsheet, File, Paperclip, PanelLeft } from "lucide-react";
 import { NotificationCenter } from "@/components/notification-center";
 import { SecretaryDashboard } from "@/components/secretary-dashboard";
+import { ConversationSidebar } from "@/components/conversation-sidebar";
 import ReactMarkdown from "react-markdown";
 import type { ChatMessage, ChatResponse, HistoryResponse, PreferencesResponse, PersonaFeedbackResponse, ProfileEnrichmentsResponse } from "@shared/schema";
 
@@ -220,6 +221,8 @@ export default function ChatPage() {
   const [ttsPlaying, setTtsPlaying] = useState(false);
   const [showVoiceSelector, setShowVoiceSelector] = useState(false);
   const [showPasswordPanel, setShowPasswordPanel] = useState(false);
+  const [showRoomSidebar, setShowRoomSidebar] = useState(false);
+  const [activeRoomId, setActiveRoomId] = useState<number | null>(null);
   const [pwType, setPwType] = useState<"owner" | "contributor">("owner");
   const [pwCurrent, setPwCurrent] = useState("");
   const [pwNew, setPwNew] = useState("");
@@ -308,7 +311,8 @@ export default function ChatPage() {
   }, [sessionData]);
 
   const { data: historyData, isLoading: historyLoading } = useQuery<HistoryResponse>({
-    queryKey: ["/api/history"],
+    queryKey: ["/api/history", activeRoomId],
+    queryFn: () => fetch(activeRoomId ? `/api/history?roomId=${activeRoomId}` : "/api/history", { credentials: "include" }).then(r => r.json()),
   });
 
   const { data: prefsData } = useQuery<PreferencesResponse>({
@@ -660,6 +664,13 @@ export default function ChatPage() {
     }
   }, [loginPassword]);
 
+  const handleSelectRoom = useCallback((roomId: number | null) => {
+    setActiveRoomId(roomId);
+    setMessages([]);
+    queryClient.removeQueries({ queryKey: ["/api/history"] });
+    if (window.innerWidth < 640) setShowRoomSidebar(false);
+  }, []);
+
   const handleLogout = useCallback(async () => {
     try {
       await fetch("/api/logout", { method: "POST", credentials: "include" });
@@ -734,9 +745,11 @@ export default function ChatPage() {
       controller = new AbortController();
       fetchTimeout = setTimeout(() => controller?.abort(), 90000);
 
-      const chatPayload = conversationModeRef.current
-        ? { ...payload, voiceMode: true }
-        : payload;
+      const chatPayload = {
+        ...payload,
+        ...(conversationModeRef.current ? { voiceMode: true } : {}),
+        ...(activeRoomId ? { roomId: activeRoomId } : {}),
+      };
 
       const response = await fetch("/api/chat", {
         method: "POST",
@@ -876,11 +889,11 @@ export default function ChatPage() {
 
   const clearMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", "/api/clear");
+      await apiRequest("POST", "/api/clear", activeRoomId ? { roomId: activeRoomId } : {});
     },
     onSuccess: () => {
       setMessages([]);
-      queryClient.invalidateQueries({ queryKey: ["/api/history"] });
+      queryClient.removeQueries({ queryKey: ["/api/history"] });
       queryClient.invalidateQueries({ queryKey: ["/api/preferences"] });
       queryClient.invalidateQueries({ queryKey: ["/api/persona-feedback"] });
       inputRef.current?.focus();
@@ -1228,6 +1241,16 @@ export default function ChatPage() {
               >
                 <LayoutDashboard className="w-4 h-4" />
               </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowRoomSidebar(!showRoomSidebar)}
+                className={`toggle-elevate ${showRoomSidebar ? "toggle-elevated" : ""}`}
+                data-testid="button-toggle-rooms"
+                title="Conversation Rooms"
+              >
+                <PanelLeft className="w-4 h-4" />
+              </Button>
             </>
           )}
           <div className="relative" ref={downloadMenuRef}>
@@ -1273,6 +1296,23 @@ export default function ChatPage() {
           </Button>
         </div>
       </header>
+
+      <div className="flex flex-1 overflow-hidden">
+        {isOwner && showRoomSidebar && (
+          <>
+            <div className="hidden sm:block w-56 border-r shrink-0 h-full overflow-hidden" data-testid="sidebar-rooms-desktop">
+              <ConversationSidebar activeRoomId={activeRoomId} onSelectRoom={handleSelectRoom} onClose={() => setShowRoomSidebar(false)} />
+            </div>
+            <div className="sm:hidden fixed inset-0 z-50 flex" data-testid="sidebar-rooms-mobile">
+              <div className="w-64 bg-card border-r h-full shadow-lg">
+                <ConversationSidebar activeRoomId={activeRoomId} onSelectRoom={handleSelectRoom} onClose={() => setShowRoomSidebar(false)} />
+              </div>
+              <div className="flex-1 bg-black/40" onClick={() => setShowRoomSidebar(false)} />
+            </div>
+          </>
+        )}
+
+        <div className="flex flex-col flex-1 overflow-hidden">
 
       {showLoginPanel && !isOwner && !isContributor && (
         <div className="border-b px-4 py-3 bg-card/50" data-testid="panel-login">
@@ -1800,6 +1840,8 @@ export default function ChatPage() {
             </Button>
           </div>
         )}
+      </div>
+        </div>
       </div>
     </div>
   );

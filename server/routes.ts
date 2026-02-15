@@ -64,6 +64,18 @@ import {
   deleteAllNotifications,
   cleanupOldNotifications,
   savePushSubscription,
+  getChatRooms,
+  getChatRoomById,
+  createChatRoom,
+  renameChatRoom,
+  deleteChatRoom,
+  getLastMessagesForRoom,
+  getAllMessagesForRoom,
+  saveMessageToRoom,
+  getMessageCountForRoom,
+  clearRoomHistory,
+  getRoomSummary,
+  setRoomSummary,
 } from "./db";
 import { getVapidPublicKey, sendPushToAll } from "./push";
 
@@ -1597,6 +1609,11 @@ export async function registerRoutes(
 
   app.get("/api/history", (req, res) => {
     try {
+      const roomId = req.query.roomId ? parseInt(req.query.roomId as string) : null;
+      if (roomId) {
+        const msgs = getAllMessagesForRoom(roomId);
+        return res.json({ messages: msgs.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })) });
+      }
       const userId = getUserId(req);
       const msgs = getAllMessages(userId);
       const response: HistoryResponse = {
@@ -1615,13 +1632,71 @@ export async function registerRoutes(
   app.post("/api/clear", (req, res) => {
     try {
       const userId = getUserId(req);
-      clearHistory(userId);
+      const roomId = req.body?.roomId ? parseInt(req.body.roomId) : null;
+      if (roomId) {
+        clearRoomHistory(roomId);
+      } else {
+        clearHistory(userId);
+      }
       clearPreferences(userId);
       clearPersonaFeedback(userId);
       clearConversationTags(userId);
       return res.json({ success: true });
     } catch (err: any) {
       console.error("Clear API error:", err?.message || err);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // ==================== CHAT ROOMS (Owner-only) ====================
+  app.get("/api/rooms", (req, res) => {
+    try {
+      if (!req.session.isOwner) return res.json({ rooms: [] });
+      const userId = getUserId(req);
+      const rooms = getChatRooms(userId);
+      return res.json({ rooms });
+    } catch (err: any) {
+      console.error("Rooms API error:", err?.message || err);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/rooms", (req, res) => {
+    try {
+      if (!req.session.isOwner) return res.status(403).json({ message: "Owner only" });
+      const userId = getUserId(req);
+      const title = req.body?.title || "Obrolan Baru";
+      const id = createChatRoom(userId, title);
+      const room = getChatRoomById(id);
+      return res.json({ room });
+    } catch (err: any) {
+      console.error("Create room error:", err?.message || err);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.patch("/api/rooms/:id", (req, res) => {
+    try {
+      if (!req.session.isOwner) return res.status(403).json({ message: "Owner only" });
+      const id = parseInt(req.params.id);
+      const { title } = req.body;
+      if (title) renameChatRoom(id, title);
+      const room = getChatRoomById(id);
+      return res.json({ room });
+    } catch (err: any) {
+      console.error("Rename room error:", err?.message || err);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/rooms/:id", (req, res) => {
+    try {
+      if (!req.session.isOwner) return res.status(403).json({ message: "Owner only" });
+      const id = parseInt(req.params.id);
+      deleteChatRoom(id);
+      return res.json({ success: true });
+    } catch (err: any) {
+      console.error("Delete room error:", err?.message || err);
       return res.status(500).json({ message: "Internal server error" });
     }
   });
@@ -1825,8 +1900,13 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid request body" });
       }
 
-      const { message, images, voiceMode } = parsed.data;
+      const { message, images, voiceMode, roomId: requestedRoomId } = parsed.data;
       const hasImages = images && images.length > 0;
+
+      let activeRoomId: number | null = null;
+      if (isOwner && requestedRoomId) {
+        activeRoomId = requestedRoomId;
+      }
 
       const corePrompt = readPromptFile("DARVIS_CORE.md");
       if (!corePrompt) {
@@ -2200,7 +2280,7 @@ GAYA NGOBROL:
       const maxTokens = wantsDetail ? 2048 : (voiceMode ? 512 : 1024);
       console.log(`[PROMPT] size: ~${systemTokenEstimate}tok, nodes: [${nodesUsed.join(", ")}], voice: ${voiceMode}, msgWords: ${msgWordCount}, reasoning: ${reasoningEffort}, maxTok: ${maxTokens}`);
 
-      const summary = getSummary(userId);
+      const summary = activeRoomId ? getRoomSummary(activeRoomId) : getSummary(userId);
       if (summary) {
         apiMessages.push({
           role: "system",
@@ -2209,7 +2289,7 @@ GAYA NGOBROL:
       }
 
       const contextBudget = nodesUsed.length >= 3 ? 10 : 20;
-      const recentMessages = getLastMessages(userId, contextBudget);
+      const recentMessages = activeRoomId ? getLastMessagesForRoom(activeRoomId, contextBudget) : getLastMessages(userId, contextBudget);
       for (const msg of recentMessages) {
         apiMessages.push({
           role: msg.role === "user" ? "user" : "assistant",
@@ -2308,8 +2388,13 @@ GAYA NGOBROL:
         }
         res.end();
 
-        saveMessage(userId, "user", message);
-        saveMessage(userId, "assistant", reply);
+        if (activeRoomId) {
+          saveMessageToRoom(activeRoomId, userId, "user", message);
+          saveMessageToRoom(activeRoomId, userId, "assistant", reply);
+        } else {
+          saveMessage(userId, "user", message);
+          saveMessage(userId, "assistant", reply);
+        }
 
         try {
           const toneSignalsForTag: string[] = [];
@@ -2355,7 +2440,7 @@ GAYA NGOBROL:
           });
         }
 
-        const msgCount = getMessageCount(userId);
+        const msgCount = activeRoomId ? getMessageCountForRoom(activeRoomId) : getMessageCount(userId);
         if (isOwner) {
           extractSecretaryData(message, reply).catch((err) => {
             console.error("Secretary extraction error:", err?.message || err);
@@ -2363,9 +2448,15 @@ GAYA NGOBROL:
         }
 
         if (msgCount > 0 && msgCount % 20 === 0) {
-          generateSummary(userId).catch((err) => {
-            console.error("Auto-summary error:", err?.message || err);
-          });
+          if (activeRoomId) {
+            generateRoomSummary(activeRoomId, userId).catch((err) => {
+              console.error("Auto-summary (room) error:", err?.message || err);
+            });
+          } else {
+            generateSummary(userId).catch((err) => {
+              console.error("Auto-summary error:", err?.message || err);
+            });
+          }
         }
 
         if (msgCount > 0 && msgCount % 10 === 0) {
@@ -2523,6 +2614,34 @@ async function generateSummary(userId: string) {
   if (summaryText) {
     upsertSummary(userId, summaryText);
     console.log(`Auto-summary generated for ${userId} (${allMessages.length} messages)`);
+  }
+}
+
+async function generateRoomSummary(roomId: number, userId: string) {
+  const allMessages = getAllMessagesForRoom(roomId);
+  if (allMessages.length < 10) return;
+
+  const last30 = allMessages.slice(-30);
+  const conversationText = last30
+    .map((m) => `${m.role === "user" ? "User" : "DARVIS"}: ${m.content}`)
+    .join("\n\n");
+
+  const existingSummary = getRoomSummary(roomId);
+
+  const prompt = existingSummary
+    ? `Kamu adalah DARVIS, asisten berpikir untuk mas DR.\n\nRingkasan sebelumnya:\n${existingSummary}\n\nPercakapan terbaru:\n${conversationText}\n\nBuatkan ringkasan singkat (max 300 kata) yang menggabungkan ringkasan sebelumnya dan percakapan terbaru. Fokus pada: topik yang dibahas, keputusan penting, konteks emosional, dan insight yang muncul. Tulis dalam bahasa Indonesia.`
+    : `Kamu adalah DARVIS, asisten berpikir untuk mas DR.\n\nPercakapan:\n${conversationText}\n\nBuatkan ringkasan singkat (max 300 kata) dari percakapan ini. Fokus pada: topik yang dibahas, keputusan penting, konteks emosional, dan insight yang muncul. Tulis dalam bahasa Indonesia.`;
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-5",
+    messages: [{ role: "user", content: prompt }],
+    max_completion_tokens: 2048,
+  });
+
+  const summaryText = completion.choices[0]?.message?.content?.trim();
+  if (summaryText) {
+    setRoomSummary(roomId, summaryText);
+    console.log(`Auto-summary generated for room ${roomId} (${allMessages.length} messages)`);
   }
 }
 

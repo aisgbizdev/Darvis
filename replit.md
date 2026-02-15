@@ -66,7 +66,13 @@ DARVIS employs a modern web architecture with a React-based frontend, an Express
         - **Team Persona Profiling (v2.0)**: DARVIS auto-extracts persona data (work_style, communication_style, triggers, commitments, personality_notes) from natural conversation and file uploads in Mirror Mode. Persona data injected into context when discussing delegation, team assignments, or character topics. Database columns added to `team_members` table. `appendIfNew()` logic prevents duplicate persona entries.
         - Notification Center: bell icon with unread badge, grouped notifications by type.
         - All secretary features owner-only protected.
-    - **Key Files**: `server/proactive.ts` (proactive system), `client/src/components/secretary-dashboard.tsx`, `client/src/components/notification-center.tsx`.
+    - **Conversation Rooms (v2.0, Owner-only)**: Organize chat history by topic while maintaining unified global context across all rooms.
+        - Database: `chat_rooms` table with `session_id`, `title`, `created_at`, `updated_at`. Conversations linked via `room_id`.
+        - API: `/api/rooms` (GET list, POST create, PATCH rename, DELETE), room-aware `/api/history?roomId=X`, `/api/chat` with `roomId` in payload, `/api/clear` with `roomId`.
+        - Frontend: `ConversationSidebar` component with room list, create/rename/delete. Toggle via PanelLeft icon in header (owner-only). Desktop: 224px side panel. Mobile: full-screen drawer with backdrop.
+        - Key design: All learned preferences, profile enrichments, persona feedback, and secretary data remain **global shared** across rooms — DARVIS maintains unified "brain" unlike ChatGPT's isolated conversations.
+        - Auto-summary per room via `generateRoomSummary()`.
+    - **Key Files**: `server/proactive.ts` (proactive system), `client/src/components/secretary-dashboard.tsx`, `client/src/components/notification-center.tsx`, `client/src/components/conversation-sidebar.tsx`.
 
 ## External Dependencies
 - **OpenAI API**: Used for AI model inference (GPT-5).
