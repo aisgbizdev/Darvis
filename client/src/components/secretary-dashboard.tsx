@@ -929,8 +929,8 @@ export function SecretaryDashboard({ onClose }: { onClose: () => void }) {
   });
 
   return (
-    <div className="absolute inset-0 z-40 bg-background flex flex-col" data-testid="panel-secretary-dashboard">
-      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b shrink-0">
+    <div className="fixed inset-0 z-50 bg-background flex flex-col" data-testid="panel-secretary-dashboard">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b shrink-0 pt-[calc(0.5rem+env(safe-area-inset-top,0px))]">
         <h2 className="text-sm font-semibold" data-testid="text-dashboard-title">Secretary Dashboard</h2>
         <Button
           variant="ghost"

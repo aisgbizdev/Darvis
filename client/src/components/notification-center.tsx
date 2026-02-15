@@ -233,7 +233,7 @@ export function NotificationCenter() {
 
       {isOpen && (
         <div
-          className="absolute right-0 top-full mt-1 w-80 sm:w-96 max-h-[70vh] rounded-md border bg-card shadow-lg z-50 flex flex-col"
+          className="fixed right-2 left-2 top-14 sm:left-auto sm:top-auto sm:absolute sm:right-0 sm:top-full mt-1 sm:w-96 max-h-[70vh] rounded-md border bg-card shadow-lg z-50 flex flex-col"
           data-testid="panel-notifications"
         >
           <div className="flex items-center justify-between gap-2 px-3 py-2 border-b">
