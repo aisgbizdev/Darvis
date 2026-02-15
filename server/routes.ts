@@ -76,6 +76,9 @@ import {
   clearRoomHistory,
   getRoomSummary,
   setRoomSummary,
+  getAllRoomSummaries,
+  moveMessagesToRoom,
+  mergeRooms,
 } from "./db";
 import { getVapidPublicKey, sendPushToAll } from "./push";
 
@@ -1701,6 +1704,30 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/rooms/merge", (req, res) => {
+    try {
+      if (!req.session.isOwner) return res.status(403).json({ message: "Owner only" });
+      const { targetRoomId, sourceRoomIds } = req.body;
+      if (!targetRoomId || !Array.isArray(sourceRoomIds) || sourceRoomIds.length === 0) {
+        return res.status(400).json({ message: "targetRoomId dan sourceRoomIds diperlukan" });
+      }
+      const userId = getUserId(req);
+      const userRooms = getChatRooms(userId);
+      const userRoomIds = new Set(userRooms.map((r: any) => r.id));
+      const allIds = [targetRoomId, ...sourceRoomIds];
+      for (const id of allIds) {
+        if (!userRoomIds.has(id)) {
+          return res.status(403).json({ message: `Room #${id} bukan milik user ini` });
+        }
+      }
+      mergeRooms(targetRoomId, sourceRoomIds);
+      return res.json({ success: true, targetRoomId });
+    } catch (err: any) {
+      console.error("Merge rooms error:", err?.message || err);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   app.get("/api/conversation-tags", (req, res) => {
     try {
       const userId = getUserId(req);
@@ -1911,8 +1938,12 @@ export async function registerRoutes(
       const hasImages = images && images.length > 0;
 
       let activeRoomId: number | null = null;
+      let roomActionResult: RoomAction | null = null;
+      let roomActionPromise: Promise<RoomAction> | null = null;
       if (isOwner && requestedRoomId) {
         activeRoomId = requestedRoomId;
+      } else if (isOwner && !requestedRoomId) {
+        roomActionPromise = detectRoomAction(message, userId);
       }
 
       const corePrompt = readPromptFile("DARVIS_CORE.md");
@@ -2389,13 +2420,54 @@ GAYA NGOBROL:
           if (!isOwner) {
             reply = mergePersonasToUnifiedVoice(reply);
           }
-          res.write(`data: ${JSON.stringify({ type: "done", nodeUsed, contextMode, presentationMode, fullReply: reply })}\n\n`);
+          if (roomActionPromise) {
+            try { roomActionResult = await roomActionPromise; } catch (_e) { roomActionResult = null; }
+          }
+
+          if (roomActionResult && !activeRoomId) {
+            if (roomActionResult.action === "create_new") {
+              const newRoomId = createChatRoom(userId, roomActionResult.roomTitle || "Obrolan Baru");
+              activeRoomId = newRoomId;
+              roomActionResult.roomId = newRoomId;
+              console.log(`Auto-created room #${newRoomId}: "${roomActionResult.roomTitle}"`);
+            } else if (roomActionResult.action === "move_to_existing" && roomActionResult.roomId) {
+              activeRoomId = roomActionResult.roomId;
+              console.log(`Auto-moving to room #${roomActionResult.roomId}: "${roomActionResult.roomTitle}"`);
+            }
+          }
+
+          const donePayload: any = { type: "done", nodeUsed, contextMode, presentationMode, fullReply: reply };
+          if (roomActionResult && isOwner) {
+            donePayload.roomAction = roomActionResult;
+          }
+          res.write(`data: ${JSON.stringify(donePayload)}\n\n`);
         } else {
           reply = enforceFormat(fullReply, isMultiPersonaMode);
           if (!isOwner) {
             reply = mergePersonasToUnifiedVoice(reply);
           }
-          res.write(`data: ${JSON.stringify({ type: "done", nodeUsed, contextMode, presentationMode, fullReply: (!isOwner || isContributor) ? reply : undefined })}\n\n`);
+
+          if (roomActionPromise) {
+            try { roomActionResult = await roomActionPromise; } catch (_e) { roomActionResult = null; }
+          }
+
+          if (roomActionResult && !activeRoomId) {
+            if (roomActionResult.action === "create_new") {
+              const newRoomId = createChatRoom(userId, roomActionResult.roomTitle || "Obrolan Baru");
+              activeRoomId = newRoomId;
+              roomActionResult.roomId = newRoomId;
+              console.log(`Auto-created room #${newRoomId}: "${roomActionResult.roomTitle}"`);
+            } else if (roomActionResult.action === "move_to_existing" && roomActionResult.roomId) {
+              activeRoomId = roomActionResult.roomId;
+              console.log(`Auto-moving to room #${roomActionResult.roomId}: "${roomActionResult.roomTitle}"`);
+            }
+          }
+
+          const donePayload: any = { type: "done", nodeUsed, contextMode, presentationMode, fullReply: (!isOwner || isContributor) ? reply : undefined };
+          if (roomActionResult && isOwner) {
+            donePayload.roomAction = roomActionResult;
+          }
+          res.write(`data: ${JSON.stringify(donePayload)}\n\n`);
         }
         res.end();
 
@@ -2625,6 +2697,73 @@ async function generateSummary(userId: string) {
   if (summaryText) {
     upsertSummary(userId, summaryText);
     console.log(`Auto-summary generated for ${userId} (${allMessages.length} messages)`);
+  }
+}
+
+interface RoomAction {
+  action: "stay_lobby" | "move_to_existing" | "create_new";
+  roomId?: number;
+  roomTitle?: string;
+  reason?: string;
+}
+
+async function detectRoomAction(userMessage: string, userId: string): Promise<RoomAction> {
+  const roomSummaries = getAllRoomSummaries(userId);
+  if (roomSummaries.length === 0) {
+    const isSubstantive = userMessage.trim().split(/\s+/).length >= 3;
+    if (!isSubstantive) return { action: "stay_lobby", reason: "Pesan terlalu singkat" };
+    return { action: "create_new", reason: "Belum ada room, topik baru" };
+  }
+
+  const roomList = roomSummaries.map(r => {
+    const summarySnippet = r.summary ? r.summary.substring(0, 200) : "belum ada summary";
+    return `- Room #${r.roomId}: "${r.title}" | ${summarySnippet}`;
+  }).join("\n");
+
+  const prompt = `Kamu adalah DARVIS room manager. Analisis pesan user dan tentukan apakah pesan ini:
+1. Berhubungan dengan room yang sudah ada (MOVE) 
+2. Topik baru yang substantif dan perlu room baru (CREATE)
+3. Obrolan ringan/singkat yang gak perlu disimpan di room (LOBBY)
+
+ROOM YANG SUDAH ADA:
+${roomList}
+
+PESAN USER:
+"${userMessage.substring(0, 500)}"
+
+ATURAN:
+- Kalau pesan jelas nyambung dengan topik room yang ada → MOVE
+- Kalau pesan substantif (diskusi, strategi, masalah, dll) tapi beda topik → CREATE
+- Kalau pesan singkat, sapaan, basa-basi, tanya ringan → LOBBY
+- Lebih baik MOVE ke room existing daripada CREATE baru kalau topiknya mirip
+
+Jawab HANYA dalam format JSON (tanpa markdown):
+{"action": "move" | "create" | "lobby", "roomId": <number kalau move, null kalau bukan>, "title": "<judul room baru kalau create, null kalau bukan>", "reason": "<alasan singkat>"}`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-5",
+      messages: [{ role: "user", content: prompt }],
+      max_completion_tokens: 256,
+    });
+
+    const raw = completion.choices[0]?.message?.content?.trim() || "";
+    const cleaned = raw.replace(/```json\s*/g, "").replace(/```/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+
+    if (parsed.action === "move" && parsed.roomId) {
+      const validRoom = roomSummaries.find(r => r.roomId === parsed.roomId);
+      if (validRoom) {
+        return { action: "move_to_existing", roomId: parsed.roomId, roomTitle: validRoom.title, reason: parsed.reason };
+      }
+    }
+    if (parsed.action === "create") {
+      return { action: "create_new", roomTitle: parsed.title || "Obrolan Baru", reason: parsed.reason };
+    }
+    return { action: "stay_lobby", reason: parsed.reason || "Obrolan ringan" };
+  } catch (err: any) {
+    console.error("Room detection error:", err?.message || err);
+    return { action: "stay_lobby", reason: "Detection error, defaulting to lobby" };
   }
 }
 

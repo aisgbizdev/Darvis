@@ -1105,4 +1105,31 @@ export function setRoomSummary(roomId: number, summary: string) {
   setSetting(key, summary);
 }
 
+export function getAllRoomSummaries(sessionId: string): { roomId: number; title: string; summary: string | null }[] {
+  const rooms = getChatRooms(sessionId);
+  return rooms.map(r => ({
+    roomId: r.id,
+    title: r.title,
+    summary: getRoomSummary(r.id),
+  }));
+}
+
+export function moveMessagesToRoom(userId: string, roomId: number) {
+  db.prepare(`UPDATE conversations SET room_id = ? WHERE user_id = ? AND room_id IS NULL`).run(roomId, userId);
+  touchChatRoom(roomId);
+}
+
+export function mergeRooms(targetRoomId: number, sourceRoomIds: number[]) {
+  const mergeTransaction = db.transaction(() => {
+    for (const sourceId of sourceRoomIds) {
+      db.prepare(`UPDATE conversations SET room_id = ? WHERE room_id = ?`).run(targetRoomId, sourceId);
+      db.prepare(`DELETE FROM room_summaries WHERE room_id = ?`).run(sourceId);
+      db.prepare(`DELETE FROM chat_rooms WHERE id = ?`).run(sourceId);
+    }
+    db.prepare(`DELETE FROM room_summaries WHERE room_id = ?`).run(targetRoomId);
+    touchChatRoom(targetRoomId);
+  });
+  mergeTransaction();
+}
+
 export default db;

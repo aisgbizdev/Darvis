@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
 import { Send, Trash2, Loader2, Lightbulb, X, Shield, Heart, Sparkles, User, Fingerprint, Mic, MicOff, ImagePlus, Lock, LogOut, Download, KeyRound, Users, Settings, Check, LayoutDashboard, Phone, PhoneOff, Volume2, FileText, FileSpreadsheet, File, Paperclip, PanelLeft } from "lucide-react";
 import { NotificationCenter } from "@/components/notification-center";
 import { SecretaryDashboard } from "@/components/secretary-dashboard";
@@ -191,7 +192,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   gaya_bahasa: "Gaya Bahasa",
 };
 
-function parseSSELine(line: string): { type: string; content?: string; nodeUsed?: string | null; contextMode?: string | null; fullReply?: string; message?: string; retryable?: boolean } | null {
+function parseSSELine(line: string): { type: string; content?: string; nodeUsed?: string | null; contextMode?: string | null; fullReply?: string; message?: string; retryable?: boolean; roomAction?: { action: string; roomId?: number; roomTitle?: string; reason?: string } } | null {
   if (!line.startsWith("data: ")) return null;
   try {
     return JSON.parse(line.slice(6));
@@ -242,6 +243,7 @@ export default function ChatPage() {
   const conversationModeRef = useRef(false);
   const vadSendRef = useRef<((text: string) => void) | null>(null);
   const lastHeardTextRef = useRef("");
+  const { toast } = useToast();
 
   const focusInput = useCallback(() => {
     if (conversationModeRef.current) return;
@@ -810,6 +812,20 @@ export default function ChatPage() {
             else setCurrentContextMode(null);
             if (conversationModeRef.current && finalContent) {
               pendingTtsRef.current = finalContent;
+            }
+            if (parsed.roomAction) {
+              const ra = parsed.roomAction;
+              if (ra.action === "create_new" && ra.roomId) {
+                setActiveRoomId(ra.roomId);
+                setShowRoomSidebar(true);
+                queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
+                toast({ title: `Room baru: "${ra.roomTitle}"`, description: ra.reason || "Topik baru terdeteksi" });
+              } else if (ra.action === "move_to_existing" && ra.roomId) {
+                setActiveRoomId(ra.roomId);
+                setShowRoomSidebar(true);
+                queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
+                toast({ title: `Dilanjutkan di "${ra.roomTitle}"`, description: ra.reason || "Topik nyambung dengan room yang ada" });
+              }
             }
           } else if (parsed.type === "error") {
             cleanup();
