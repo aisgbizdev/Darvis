@@ -1652,7 +1652,7 @@ export async function registerRoutes(
         return res.json({ messages: msgs.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })) });
       }
       const userId = getUserId(req);
-      const msgs = await getAllMessages(userId);
+      const msgs = await getAllMessages(userId, true);
       const response: HistoryResponse = {
         messages: msgs.map((m) => ({
           role: m.role as "user" | "assistant",

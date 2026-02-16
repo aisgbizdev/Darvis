@@ -285,9 +285,11 @@ export async function clearHistory(userId: string, lobbyOnly = false) {
   }
 }
 
-export async function getAllMessages(userId: string) {
+export async function getAllMessages(userId: string, lobbyOnly = false) {
   const result = await pool.query(
-    `SELECT role, content FROM conversations WHERE user_id = $1 ORDER BY id ASC`,
+    lobbyOnly
+      ? `SELECT role, content FROM conversations WHERE user_id = $1 AND room_id IS NULL ORDER BY id ASC`
+      : `SELECT role, content FROM conversations WHERE user_id = $1 ORDER BY id ASC`,
     [userId]
   );
   return result.rows as { role: string; content: string }[];
