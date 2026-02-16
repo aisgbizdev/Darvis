@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { type Server } from "http";
 import { chatRequestSchema, type ChatResponse, type HistoryResponse } from "@shared/schema";
 import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import fs from "fs";
 import path from "path";
 import multer from "multer";
@@ -85,6 +86,8 @@ import { getVapidPublicKey, sendPushToAll } from "./push";
 import { getWIBDateString, getWIBTimeString, getWIBDayName, parseWIBTimestamp } from "./proactive";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const geminiApiKey = process.env.GEMINI_API_KEY;
+const genAI = geminiApiKey ? new GoogleGenerativeAI(geminiApiKey) : null;
 
 const ENRICHMENT_CATEGORY_LABELS: Record<string, string> = {
   persepsi_orang: "Persepsi Orang Lain",
@@ -2441,52 +2444,155 @@ GAYA NGOBROL:
 
         let stream: any;
         let actualModel = selectedModel;
+        let useGeminiFallback = false;
+
+        const isQuotaError = (err: any): boolean => {
+          const s = err?.status || err?.statusCode;
+          const m = (err?.message || String(err)).toLowerCase();
+          if (s === 402 || s === 403) {
+            return m.includes("quota") || m.includes("billing") || m.includes("insufficient") || m.includes("exceeded");
+          }
+          const is429 = s === 429 || m.includes("429") || m.includes("rate limit");
+          return is429 && (m.includes("quota") || m.includes("billing") || m.includes("exceeded") || m.includes("insufficient"));
+        };
+
         try {
           stream = await (openai.chat.completions.create as any)(chatParams, { signal: abortController.signal });
         } catch (initialErr: any) {
           const errStatus = initialErr?.status || initialErr?.statusCode;
           const errMsg = initialErr?.message || String(initialErr);
-          const is429 = errStatus === 429 || errMsg.includes("429");
+          const is429 = errStatus === 429 || errMsg.includes("429") || errMsg.toLowerCase().includes("rate limit");
           const isModelErr = errStatus === 404 || errMsg.includes("model_not_found") || errMsg.includes("does not exist");
 
-          if ((is429 || isModelErr) && selectedModel !== "gpt-4o") {
+          if ((is429 || isModelErr) && selectedModel !== "gpt-4o" && (selectedModel as string) !== "gpt-4o-mini") {
             console.log(`[RETRY] ${selectedModel} failed (${is429 ? "rate_limit" : "model_error"}), falling back to gpt-4o`);
             actualModel = "gpt-4o";
             chatParams.model = "gpt-4o";
             delete chatParams.reasoning_effort;
-            if (is429) {
-              await new Promise(r => setTimeout(r, 2000));
+            if (is429) await new Promise(r => setTimeout(r, 2000));
+            try {
+              stream = await (openai.chat.completions.create as any)(chatParams, { signal: abortController.signal });
+            } catch (err2: any) {
+              console.log(`[RETRY] gpt-4o also failed, trying gpt-4o-mini`);
+              actualModel = "gpt-4o-mini";
+              chatParams.model = "gpt-4o-mini";
+              await new Promise(r => setTimeout(r, 1000));
+              try {
+                stream = await (openai.chat.completions.create as any)(chatParams, { signal: abortController.signal });
+              } catch (err3: any) {
+                if (genAI && isQuotaError(err3)) {
+                  useGeminiFallback = true;
+                  console.log(`[GEMINI_FALLBACK] All OpenAI models failed, switching to Gemini`);
+                } else {
+                  throw err3;
+                }
+              }
             }
-            stream = await (openai.chat.completions.create as any)(chatParams, { signal: abortController.signal });
           } else if (is429 && selectedModel === "gpt-4o") {
             console.log(`[RETRY] gpt-4o rate limited, falling back to gpt-4o-mini after 2s`);
             actualModel = "gpt-4o-mini";
             chatParams.model = "gpt-4o-mini";
             delete chatParams.reasoning_effort;
             await new Promise(r => setTimeout(r, 2000));
-            stream = await (openai.chat.completions.create as any)(chatParams, { signal: abortController.signal });
+            try {
+              stream = await (openai.chat.completions.create as any)(chatParams, { signal: abortController.signal });
+            } catch (err2: any) {
+              if (genAI && isQuotaError(err2)) {
+                useGeminiFallback = true;
+                console.log(`[GEMINI_FALLBACK] All OpenAI models failed, switching to Gemini`);
+              } else {
+                throw err2;
+              }
+            }
+          } else if (genAI && isQuotaError(initialErr)) {
+            useGeminiFallback = true;
+            console.log(`[GEMINI_FALLBACK] OpenAI quota exhausted, switching to Gemini`);
           } else {
             throw initialErr;
           }
         }
 
-        if (actualModel !== selectedModel) {
-          console.log(`[MODEL] Fallback: ${selectedModel} → ${actualModel}`);
-        }
-
         let fullReply = "";
-        let lastFinishReason: string | null = null;
-        for await (const chunk of stream) {
-          const choice = chunk.choices[0];
-          const delta = choice?.delta?.content;
-          if (choice?.finish_reason) {
-            lastFinishReason = choice.finish_reason;
+
+        if (useGeminiFallback && genAI) {
+          actualModel = "gemini-2.5-flash";
+          const geminiModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+          const geminiContents = apiMessages
+            .filter((m: any) => m.role !== "system")
+            .map((m: any) => ({
+              role: m.role === "assistant" ? "model" : "user",
+              parts: Array.isArray(m.content)
+                ? m.content.map((c: any) => {
+                    if (c.type === "text") return { text: c.text };
+                    if (c.type === "image_url") {
+                      const url = c.image_url?.url || "";
+                      if (url.startsWith("data:")) {
+                        const match = url.match(/^data:(.+?);base64,(.+)$/);
+                        if (match) {
+                          return { inlineData: { mimeType: match[1], data: match[2] } };
+                        }
+                      }
+                      return { text: `[Image: ${url}]` };
+                    }
+                    return { text: JSON.stringify(c) };
+                  })
+                : [{ text: String(m.content) }],
+            }));
+
+          const systemMsg = apiMessages.find((m: any) => m.role === "system");
+          const systemInstruction = systemMsg
+            ? (typeof systemMsg.content === "string" ? systemMsg.content : JSON.stringify(systemMsg.content))
+            : undefined;
+
+          const geminiChat = geminiModel.startChat({
+            history: geminiContents.slice(0, -1),
+            ...(systemInstruction ? { systemInstruction } : {}),
+          });
+
+          let lastUserParts = [{ text: message }];
+          for (let i = geminiContents.length - 1; i >= 0; i--) {
+            if (geminiContents[i].role === "user") {
+              lastUserParts = geminiContents[i].parts;
+              break;
+            }
           }
-          if (delta) {
-            fullReply += delta;
-            res.write(`data: ${JSON.stringify({ type: "chunk", content: delta })}\n\n`);
-            if (typeof (res as any).flush === "function") {
-              (res as any).flush();
+
+          try {
+            const geminiStream = await geminiChat.sendMessageStream(lastUserParts);
+
+            for await (const chunk of geminiStream.stream) {
+              const text = chunk.text();
+              if (text) {
+                fullReply += text;
+                res.write(`data: ${JSON.stringify({ type: "chunk", content: text })}\n\n`);
+                if (typeof (res as any).flush === "function") {
+                  (res as any).flush();
+                }
+              }
+            }
+          } catch (geminiErr: any) {
+            console.error("[GEMINI_ERROR]", geminiErr?.message || geminiErr);
+            throw new Error(`Gemini fallback juga gagal: ${geminiErr?.message || "Unknown error"}`);
+          }
+        } else {
+          if (actualModel !== selectedModel) {
+            console.log(`[MODEL] Fallback: ${selectedModel} → ${actualModel}`);
+          }
+
+          let lastFinishReason: string | null = null;
+          for await (const chunk of stream) {
+            const choice = chunk.choices[0];
+            const delta = choice?.delta?.content;
+            if (choice?.finish_reason) {
+              lastFinishReason = choice.finish_reason;
+            }
+            if (delta) {
+              fullReply += delta;
+              res.write(`data: ${JSON.stringify({ type: "chunk", content: delta })}\n\n`);
+              if (typeof (res as any).flush === "function") {
+                (res as any).flush();
+              }
             }
           }
         }
@@ -2497,7 +2603,7 @@ GAYA NGOBROL:
         const presentationMode = isOwner ? "mirror" : isContributor ? "contributor" : "twin";
         let reply: string;
         if (!fullReply.trim()) {
-          console.error(`[EMPTY_RESPONSE] API returned empty for message: "${message.substring(0, 100)}", prompt size: ${systemContent.length} chars, finishReason: ${lastFinishReason}`);
+          console.error(`[EMPTY_RESPONSE] API returned empty for message: "${message.substring(0, 100)}", prompt size: ${systemContent.length} chars, model: ${actualModel}`);
           reply = "Maaf, gw butuh waktu untuk memproses pertanyaan ini. Coba ulangi atau rephrase ya.";
           if (!isOwner) {
             reply = mergePersonasToUnifiedVoice(reply);
