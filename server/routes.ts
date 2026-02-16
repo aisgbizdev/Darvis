@@ -2382,8 +2382,18 @@ GAYA NGOBROL:
         });
       }
 
-      const contextBudget = isHeavyContext ? 10 : (voiceMode ? 4 : 6);
-      const recentMessages = activeRoomId ? await getLastMessagesForRoom(activeRoomId, contextBudget) : await getLastMessages(userId, contextBudget);
+      let recentMessages: { role: string; content: string }[];
+      if (activeRoomId) {
+        const roomMsgCount = await getMessageCountForRoom(activeRoomId);
+        const roomBudget = voiceMode ? 8 : (roomMsgCount <= 40 ? roomMsgCount : 30);
+        recentMessages = roomMsgCount <= 40
+          ? await getAllMessagesForRoom(activeRoomId)
+          : await getLastMessagesForRoom(activeRoomId, roomBudget);
+        console.log(`[ROOM] Room #${activeRoomId}: ${roomMsgCount} msgs, loading ${Math.min(roomMsgCount, roomBudget)} msgs`);
+      } else {
+        const contextBudget = isHeavyContext ? 10 : (voiceMode ? 4 : 6);
+        recentMessages = await getLastMessages(userId, contextBudget);
+      }
       for (const msg of recentMessages) {
         apiMessages.push({
           role: msg.role === "user" ? "user" : "assistant",
