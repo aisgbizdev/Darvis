@@ -225,6 +225,63 @@ export async function initDatabase() {
   }
 
   console.log("PostgreSQL database initialized successfully");
+
+  await syncTeamZonaData();
+}
+
+async function syncTeamZonaData() {
+  const zonaUpdates: { name: string; strengths: string; weaknesses: string }[] = [
+    { name: "Franky Reagan Law", strengths: "Backbone eksekusi & monitoring, role model manajemen proyek, zona hijau", weaknesses: "Beban koordinasi besar" },
+    { name: "Anita Nur Hidayah", strengths: "Kreatif, cepat adaptasi tools desain, visual branding, zona kuning", weaknesses: "Revisi minor berlebihan, perlu penyesuaian visi" },
+    { name: "Pindofirnandito K", strengths: "Eksekusi cepat, aset visual cepat jadi, zona kuning", weaknesses: "Minim inisiatif" },
+    { name: "Kresno Nugroho", strengths: "Developer senior, poros teknis NM, zona hijau", weaknesses: "Beban kerja tinggi" },
+    { name: "Arya Pramudhita", strengths: "Front-end dev, coding cepat, zona kuning", weaknesses: "Tergantung mentor" },
+    { name: "Dessy Syafitrie", strengths: "Paham distribusi konten, integrasi NM-portal, zona hijau", weaknesses: "Koordinasi dev lambat, double role load" },
+    { name: "Faturrahman", strengths: "Programmer baru", weaknesses: "Baru bergabung, masih adaptasi" },
+    { name: "Sumarlin Newin Sidabutar", strengths: "Menguasai pelatihan internal, knowledge hub BD SG, zona hijau", weaknesses: "Minim backup SDM" },
+    { name: "Marvy Sammy Breemer", strengths: "Memimpin RnD, manajemen proyek, zona hijau", weaknesses: "Bottleneck dev desktop" },
+    { name: "Muhammad Nurul", strengths: "Multi-peran, coach konten & audit, PM AiSG, zona hijau", weaknesses: "Risiko overload" },
+    { name: "Yudis Tri Saputro", strengths: "Kecepatan menulis, aktif produksi konten, zona kuning", weaknesses: "Konsistensi kualitas" },
+    { name: "Ayu Dwetiawati", strengths: "Pegang dua peran, konten media, zona kuning", weaknesses: "Fokus terpecah" },
+    { name: "Cahyo Purnomo", strengths: "Kuat riset isu, anchor insight, zona kuning", weaknesses: "Penulisan bertele-tele" },
+    { name: "Al Apgani", strengths: "Pemula cepat adaptasi, bahasa segar, zona kuning", weaknesses: "Butuh arahan teknis" },
+  ];
+
+  let updated = 0;
+  for (const item of zonaUpdates) {
+    try {
+      const existing = await pool.query(
+        `SELECT id, strengths, weaknesses FROM team_members WHERE name = $1`,
+        [item.name]
+      );
+      if (existing.rows.length > 0) {
+        const current = existing.rows[0];
+        const updates: string[] = [];
+        const values: any[] = [];
+        let idx = 1;
+        if (!current.strengths || current.strengths.trim() === "") {
+          updates.push(`strengths = $${idx++}`);
+          values.push(item.strengths);
+        }
+        if (!current.weaknesses || current.weaknesses.trim() === "") {
+          updates.push(`weaknesses = $${idx++}`);
+          values.push(item.weaknesses);
+        }
+        if (updates.length > 0) {
+          updates.push(`updated_at = NOW()::TEXT`);
+          values.push(current.id);
+          await pool.query(
+            `UPDATE team_members SET ${updates.join(", ")} WHERE id = $${idx}`,
+            values
+          );
+          updated++;
+        }
+      }
+    } catch (_e) {}
+  }
+  if (updated > 0) {
+    console.log(`[syncTeamZonaData] Updated ${updated} team members with zona data`);
+  }
 }
 
 export async function getLastMessages(userId: string, limit: number = 10) {
